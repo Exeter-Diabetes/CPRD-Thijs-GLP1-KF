@@ -6,10 +6,9 @@
 ## 'ckd_egfr50': decline in eGFR of >=50% from baseline or onset of CKD stage 5 OR death from renal causes
 
 # Sensitivity analysis:
-## '{outcome}_pp': all of main analysis but per-protocol rather than intention to treat
+## '{outcome}_sens': all of main analysis but with different groupings of drugs
 ## intention to treat: censoring if starting an SGLT2 inhibitor or GLP1 agonist (if in DPP4/SU arm).
-## per-protocol: censoring if starting any other treatment arm.
-## not using per-protocol analyses other than to compare DPP4i with SU arm or different GLP1s.
+## sensitivity: censoring if starting any other treatment arm in analyses to compare DPP4i with SU arm or different GLP1s.
 
 
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
@@ -38,18 +37,31 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                if_else(studydrug2!="SGLT2" & studydrug2!="GLP1/SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                                na.rm=TRUE),
            
-           cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
-                              
-                              gp_end_date,
-                              # death_date,
-                              if_else(studydrug1!="Other GLP1", next_other_glp1_start, as.Date("2050-01-01")),
-                              if_else(studydrug1!="Oral semaglutide", next_semaglutide_oral_start, as.Date("2050-01-01")),
-                              if_else(studydrug1!="Subcutaneous semaglutide", next_semaglutide_subcut_start, as.Date("2050-01-01")),
-                              if_else(studydrug1!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
-                              if_else(studydrug1!="SU", next_su_start, as.Date("2050-01-01")),
-                              if_else(studydrug1!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
-                              #    dstopdate_class+183,
-                              na.rm=TRUE),
+           cens_sens1_3_yrs=pmin(dstartdate+(365.25*3),
+                                
+                                gp_end_date,
+                                # death_date,
+                                if_else(studydrug1!="GLP1", next_semaglutide_subcut_start, as.Date("2050-01-01")),
+                                if_else(studydrug1!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                                if_else(studydrug1!="SU", next_su_start, as.Date("2050-01-01")),
+                                if_else(studydrug1!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
+                                #    dstopdate_class+183,
+                                na.rm=TRUE),
+           
+           cens_sens3_3_yrs=pmin(dstartdate+(365.25*3),
+                                
+                                gp_end_date,
+                                # death_date,           
+                                if_else(studydrug3!="Other GLP1", next_other_glp1_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="Subcutaneous semaglutide", next_other_glp1_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="Oral semaglutide", next_semaglutide_oral_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="SU", next_su_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
+                                #    dstopdate_class+183,
+                                na.rm=TRUE),
+           
+
            
            
            
@@ -128,21 +140,24 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   else {
     
-    # Split by whether ITT or PP
-    sensitivity_outcomes <- c("ckd_egfr50_pp")
+    # sensitivity analyses
+    sensitivity_outcomes <- c("ckd_egfr50_sens1", "ckd_egfr50_sens3")
     
     
     for (i in sensitivity_outcomes) {
       
+      sens = substr(i, nchar(i)-4, nchar(i))
+      censoring_var_im=paste0("cens_", sens, "_3_yrs")
       censdate_var=paste0(i, "_censdate")
       censvar_var=paste0(i, "_censvar")
       censtime_var=paste0(i, "_censtime_yrs")
       
       
-      outcome_var=paste0(substr(i, 1,  nchar(i)-3), "_outcome")
+      outcome_var=paste0(substr(i, 1,  nchar(i)-6), "_outcome")
+      
 
         cohort <- cohort %>%
-          mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_pp_3_yrs, na.rm=TRUE))
+          mutate({{censdate_var}}:=pmin(!!sym(outcome_var), !!sym(censoring_var_im), na.rm=TRUE))
       
       
       

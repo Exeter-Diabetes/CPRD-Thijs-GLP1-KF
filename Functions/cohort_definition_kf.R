@@ -61,10 +61,10 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       ## and distinct levels for separate oral vs sc semaglutide (studydrug4)
       studydrug2 = ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4/SU", ifelse(studydrug1 == "SGLT2" & GLP1 == 1 | studydrug1 == "GLP1" & SGLT2 == 1,
                                                                              "GLP1/SGLT2", studydrug1)),
-      studydrug1 = ifelse(studydrug1 == "GLP1", ifelse(grepl("semaglutide", drug_substance, ignore.case=T), 
+      studydrug3 = ifelse(studydrug1 == "GLP1", ifelse(grepl("semaglutide", drug_substance, ignore.case=T), 
                                                       ifelse(grepl("oral", drug_substance, ignore.case=T), 
                                                              "Oral semaglutide", "Subcutaneous semaglutide"), 
-                                                      "Other GLP1"), studydrug1)
+                                                      "Other GLP1"), ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4/SU", studydrug1))
       
     )
   
