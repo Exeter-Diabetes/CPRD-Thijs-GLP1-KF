@@ -10,10 +10,14 @@ load(paste0(today, "_t2d_glp1_imputed_data_withweights.Rda"))
 # create empty data frame to which we can append the hazard ratios once calculated
 hrs <- data.frame()
 
-# add extra studydrug variable with SGLT2 as reference
-cohort$studydrug4 <- relevel(cohort$studydrug2, ref = "SGLT2")
-
 # number of studydrug variables
+n.studydrug.vars <- sum(grepl("studydrug", colnames(cohort)))
+
+# add extra studydrug variable with SGLT2 as reference
+new_studydrug_var <- paste0("studydrug", n.studydrug.vars+1)
+cohort[[new_studydrug_var]] <- relevel(cohort$studydrug2, ref = "SGLT2")
+
+# recalculate number of studydrug variables
 n.studydrug.vars <- sum(grepl("studydrug", colnames(cohort)))
 
 # main dataset is large - for speed of computation we will only load in dataset we need each time
@@ -57,7 +61,7 @@ for (m in 1:n.studydrug.vars) {
     
     print(paste0("Calculating event numbers per drug level for outcome ", k))
     
-    if (m == 1 | m == 3) {
+    if (m != 2 & m != n.studydrug.vars) {
       
       # studydrug1 is meant to check validity of taking DPP4/SU as one group and studydrug 3 the difference between different GLP1 types
       # therefore we will use censoring variables _sens1/_sens3 which will censor observations if switching between those

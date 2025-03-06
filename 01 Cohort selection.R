@@ -409,6 +409,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 write.csv2(tabforprint2, file = paste0(today, "_baseline_table2.csv"))
 
 
+n.studydrug.vars <- sum(grepl("studydrug", colnames(temp)))
 
 # events rates (sum of events divided by sum of person-years) by studydrug
 outcomes <- c("ckd_egfr40", "ckd_egfr50", "ckd_egfr50_5y"#, "macroalb", "dka", "side_effect", "death", "amputation"
@@ -418,10 +419,10 @@ for (k in outcomes) {
   censvar_var=paste0(k, "_censvar")
   censtime_var=paste0(k, "_censtime_yrs")  
   
-  for (m in levels(as.factor(temp$studydrug1))) {
-    events <- temp %>% filter(.imp !=0 & studydrug1 == m) %>% select(censvar_var) %>% sum()
-    pyears <- temp %>% filter(.imp !=0 & studydrug1 == m) %>% select(censtime_var) %>% sum()
-    print(paste0(m, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
+  for (p in levels(as.factor(temp$studydrug2))) {
+    events <- temp %>% filter(.imp !=0 & studydrug2 == p) %>% select(censvar_var) %>% sum()
+    pyears <- temp %>% filter(.imp !=0 & studydrug2 == p) %>% select(censtime_var) %>% sum()
+    print(paste0(p, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
     rm(events)
     rm(pyears)
   }
@@ -429,19 +430,29 @@ for (k in outcomes) {
   rm(censtime_var)
 }
 
-sensitivity_outcomes <- "ckd_egfr50_pp"
+sensitivity_outcome <- "ckd_egfr50_sens"
 
-for (k in sensitivity_outcomes) {
-  censvar_var=paste0(k, "_censvar")
-  censtime_var=paste0(k, "_censtime_yrs")  
+for (k in sensitivity_outcome) {
   
-  for (m in levels(as.factor(temp$studydrug1))) {
-    events <- temp %>% filter(.imp !=0 & studydrug1 == m) %>% select(censvar_var) %>% sum()
-    pyears <- temp %>% filter(.imp !=0 & studydrug1 == m) %>% select(censtime_var) %>% sum()
-    print(paste0(m, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
-    rm(events)
-    rm(pyears)
+  for (m in 1:n.studydrug.vars) {
+  
+    if (m == 2) { next } else {
+      
+      studydrug_var = paste0("studydrug", m)
+      censvar_var=paste0(sensitivity_outcome, m, "_censvar")
+      censtime_var=paste0(sensitivity_outcome, m, "_censtime_yrs")  
+      
+      print(paste0("Event rates for ", studydrug_var))
+      
+      for (p in levels(as.factor(temp[[studydrug_var]]))) {
+        events <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censvar_var) %>% sum()
+        pyears <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censtime_var) %>% sum()
+        print(paste0(p, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
+        rm(events)
+        rm(pyears)
+      }
+      rm(censvar_var)
+      rm(censtime_var)
+    } 
   }
-  rm(censvar_var)
-  rm(censtime_var)
 }

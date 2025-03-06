@@ -39,7 +39,7 @@ for (m in 1:n.studydrug.vars) {
     # Prepare labels
     labels_plot <- temp_hrs
     
-    # change factor reference level
+    # set factor reference and order of levels
     
     if (m==1) {
       temp_hrs <- temp_hrs %>% mutate(
@@ -61,7 +61,7 @@ for (m in 1:n.studydrug.vars) {
     
     if (m==4) {
       temp_hrs <- temp_hrs %>% mutate(
-        drug = factor(drug, levels = c("SGLT2", "GLP1", "GLP1/SGLT2"))
+        drug = factor(drug, levels = c("SGLT2", "DPP4/SU", "GLP1", "GLP1/SGLT2"))
       )
     }
     
