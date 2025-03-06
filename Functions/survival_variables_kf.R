@@ -1,13 +1,13 @@
 
 # Produce survival variables for all endpoints (including for sensitivity analysis)
-## All censored at 5 years post drug start (3 years for 'ckd_egfr40') / end of GP records / death / starting a different diabetes med which affects CV risk (TZD/GLP1/SGLT2), and also drug stop date + 6 months for per-protocol analysis
+## All censored at 5 years post drug start (3 years for 'ckd_egfr40') / end of GP records / death / starting a different diabetes med which affects CV risk (GLP1 + SGLT2), and also drug stop date + 6 months for per-protocol analysis
 
 # Main analysis:
 ## 'ckd_egfr50': decline in eGFR of >=50% from baseline or onset of CKD stage 5 OR death from renal causes
 
 # Sensitivity analysis:
 ## '{outcome}_sens': all of main analysis but with different groupings of drugs
-## intention to treat: censoring if starting an SGLT2 inhibitor or GLP1 agonist (if in DPP4/SU arm).
+## intention to treat: censoring if starting an SGLT2 inhibitor or GLP1 agonist (if in DPP4 + SU arm).
 ## sensitivity: censoring if starting any other treatment arm in analyses to compare DPP4i with SU arm or different GLP1s.
 
 
@@ -24,8 +24,8 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                          
                          gp_end_date,
                          # death_date,
-                         if_else(studydrug2!="GLP1" & studydrug2!="GLP1/SGLT2", next_glp1_start, as.Date("2050-01-01")),
-                         if_else(studydrug2!="SGLT2" & studydrug2!="GLP1/SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                         if_else(studydrug2!="GLP1" & studydrug2!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
+                         if_else(studydrug2!="SGLT2" & studydrug2!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                          na.rm=TRUE),
 
            
@@ -33,8 +33,8 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                
                                gp_end_date,
                                # death_date,
-                               if_else(studydrug2!="GLP1" & studydrug2!="GLP1/SGLT2", next_glp1_start, as.Date("2050-01-01")),
-                               if_else(studydrug2!="SGLT2" & studydrug2!="GLP1/SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                               if_else(studydrug2!="GLP1" & studydrug2!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
+                               if_else(studydrug2!="SGLT2" & studydrug2!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                                na.rm=TRUE),
            
            cens_sens1_3_yrs=pmin(dstartdate+(365.25*3),

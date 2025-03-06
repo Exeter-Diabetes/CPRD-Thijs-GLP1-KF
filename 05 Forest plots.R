@@ -49,19 +49,19 @@ for (m in 1:n.studydrug.vars) {
     
     if (m==2) {  
       temp_hrs <- temp_hrs %>% mutate(
-        drug = factor(drug, levels = c("DPP4/SU", "GLP1", "SGLT2", "GLP1/SGLT2"))
+        drug = factor(drug, levels = c("DPP4 + SU", "GLP1", "SGLT2", "GLP1 + SGLT2"))
       )
     }
     
     if (m==3) {  
       temp_hrs <- temp_hrs %>% mutate(
-        drug = factor(drug, levels = c("DPP4/SU", "GLP1", "SGLT2", "Oral semaglutide", "Subcutaneous semaglutide", "Other GLP1"))
+        drug = factor(drug, levels = c("DPP4 + SU", "GLP1", "SGLT2", "Oral semaglutide", "Subcutaneous semaglutide", "Other GLP1"))
       )
     }
     
     if (m==4) {
       temp_hrs <- temp_hrs %>% mutate(
-        drug = factor(drug, levels = c("SGLT2", "DPP4/SU", "GLP1", "GLP1/SGLT2"))
+        drug = factor(drug, levels = c("SGLT2", "DPP4 + SU", "GLP1", "GLP1 + SGLT2"))
       )
     }
     

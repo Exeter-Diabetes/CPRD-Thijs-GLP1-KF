@@ -63,7 +63,7 @@ for (m in 1:n.studydrug.vars) {
     
     if (m != 2 & m != n.studydrug.vars) {
       
-      # studydrug1 is meant to check validity of taking DPP4/SU as one group and studydrug 3 the difference between different GLP1 types
+      # studydrug1 is meant to check validity of taking DPP4 + SU as one group and studydrug 3 the difference between different GLP1 types
       # therefore we will use censoring variables _sens1/_sens3 which will censor observations if switching between those
       censvar_var=paste0(k, "_sens", m, "_censvar")
       censtime_var=paste0(k, "_sens", m, "_censtime_yrs")

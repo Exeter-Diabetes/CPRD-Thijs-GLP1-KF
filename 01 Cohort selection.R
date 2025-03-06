@@ -29,13 +29,13 @@ source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 # "Number of subjects on GIPGLP1: 413 (not included due to small numbers)"
-# "Number of subjects of starting an GLP1/SGLT2 or comparator drugs DPP4/SU between 2014-2024: 524510"
-# "Number of drug episodes of starting an GLP1/SGLT2 or comparator drugs DPP4/SU between 2014-2024: 1251436"
+# "Number of subjects of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: 524510"
+# "Number of drug episodes of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: 1251436"
 # "Number of drug episodes excluded with established CVD: 307965"
 # "Number of drug episodes excluded with established HF: 35635"
 # "Number of drug episodes excluded with unknown CKD status: 142544"
 # "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 2591"
-# "Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after episode of SGLT2 or GLP1): 34195"
+# "Number of drug episodes removed (e.g. subsequent episode of starting DPP4 + SU after episode of SGLT2 or GLP1): 34195"
 # "Number of subjects included: 297069"
 # "Number of drug episodes included: 728528"
 
