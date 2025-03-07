@@ -5,6 +5,8 @@ source("00 Setup.R")
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 load(paste0(today, "_t2d_glp1_imputed_data_withweights.Rda"))
 
+# set studydrug level that will be used as main analysis
+m = 2
 ############################1 HAZARD RATIOS OVERALL################################################################
 
 # create empty data frame to which we can append the hazard ratios once calculated
@@ -15,7 +17,7 @@ n.studydrug.vars <- sum(grepl("studydrug", colnames(cohort)))
 
 # add extra studydrug variable with SGLT2 as reference
 new_studydrug_var <- paste0("studydrug", n.studydrug.vars+1)
-cohort[[new_studydrug_var]] <- relevel(cohort$studydrug2, ref = "SGLT2")
+cohort[[new_studydrug_var]] <- relevel(cohort[[paste0("studydrug", m)]], ref = "SGLT2")
 
 # recalculate number of studydrug variables
 n.studydrug.vars <- sum(grepl("studydrug", colnames(cohort)))

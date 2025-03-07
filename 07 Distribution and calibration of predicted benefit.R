@@ -1,5 +1,4 @@
-# in this script we will compare predicted with observed absolute risk reductions and create main figures
-# we will also compare treatment strategies based on Predicted 3-year absolute risk reductions with the current albuminuria treshold
+# in this script we will compare predicted with counterfactual absolute risk reductions (estimated based on observed data) and create main figures
 
 ########################0 SETUP####################################################################
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
@@ -11,7 +10,7 @@ load(paste0(today, "_t2d_GLP1_imputed_data_with_observed_surv.Rda"))
 m = 2
 studydrug_var = paste0("studydrug", m)
 weights_overlap = paste0("overlap", m)
-
+drug_levels <- levels(cohort[[studydrug_var]])
 ############################1 DISTRIBUTION/CALIBRATION of pARR################################################################
 
 # calculate predicted SGLT2 benefit (absolute risk reduction = ARR):
@@ -35,6 +34,20 @@ cohort <- cohort %>%
          albuminuria_cat = factor(albuminuria_cat),
          ckd_cat = paste(egfr_cat, albuminuria_cat, sep = "_"),
          ckd_cat = factor(ckd_cat))
+
+
+# print overall benefit per drug and by CKD category
+for (n in drug_levels[-1]) {
+  
+  benefit_variable = paste0("`ckdpc_50egfr_", n, "_benefit`")
+  
+  print(paste0("Overall median pARR for ", n, ": ", sprintf("%.2f", median(cohort[[benefit_variable]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[[benefit_variable]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[[benefit_variable]]*100, 0.75)), ")"))
+  
+  for (c in levels(cohort$ckd_cat)) {
+    
+    print(paste0("Median pARR for ", n, " in CKD category ", c, ": ", sprintf("%.2f", median(cohort[cohort$ckd_cat == c,][[benefit_variable]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[benefit_variable]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[benefit_variable]]*100, 0.75)), ")"))
+  }
+}
 
 ## FIGURE: histogram of predicted benefit
 
@@ -116,11 +129,22 @@ dev.off()
 ##FIGURE: calibration plot of predicted vs observed absolute risk reductions
 benefit_calibration_plot_list <- list()
 
+# create extra variable to differentiate between reduced/preserved eGFR for plots below
+cohort <- cohort %>% mutate(
+  egfr_cat2 = ifelse(preegfr < 60, "<60", "≥60"),
+  egfr_cat2 = factor(egfr_cat2)
+)
+
 for (n in levels(cohort[[studydrug_var]])[-1]) {
   
   benefit_variable = paste0("ckdpc_50egfr_", n, "_benefit")
   
-  obs_v_pred_for_plot <- cohort %>%
+  for (p in length(levels(cohort$egfr_cat2))) {
+  
+    q = levels(cohort$egfr_cat2)[p]
+    
+  obs_v_pred_for_plot <- cohort %>% 
+    filter(egfr_cat2 == q) %>%
     # group predicted benefit by decile
     mutate(benefit_decile = ntile(!!sym(benefit_variable), n.quantiles)) %>%
     group_by(benefit_decile) %>%
@@ -154,13 +178,18 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
           plot.title=element_text(hjust = 0.5),
           plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
           legend.position = "none") +
-    coord_cartesian(xlim = c(0,3.5), ylim = c(-.1,3.56))
+    coord_cartesian(xlim = c(0,3.5), ylim = c(-.1,3.56)) +
+    ggtitle(if (q == "<60") {"Reduced eGFR (<60mL/min/1.73m2)"} else {"Preserved eGFR (≥60mL/min/1.73m2)"})
   
-  benefit_calibration_plot_list[[n]] <- p_benefit_calibration
+  benefit_calibration_plot_list[[p]] <- p_benefit_calibration
+  
+  }
+  # wrap calibration plot for reduced and preserved eGFR together side by side
+  combined_calibration_plot <- wrap_plots(benefit_calibration_plot_list, ncol = nlevels(cohort$egfr_cat2)) 
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   tiff(paste0(today, "_predicted_benefit_", n, "_calibration.tiff"), width=6, height=5.5, units = "in", res=800) 
-  print(benefit_calibration_plot_list[[n]])
+  print(combined_calibration_plot)
   dev.off()
   
 }

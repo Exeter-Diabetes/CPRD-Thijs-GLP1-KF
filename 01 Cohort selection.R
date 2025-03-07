@@ -379,70 +379,70 @@ q <- temp %>% .$patid %>% unique() %>% length()
 print(paste0("Number of subjects in study population ", q))
 
 # save imputed dataset so this can be used in the subsequent scripts
+temp <- temp %>%
+       mutate(across(starts_with("studydrug"), as.factor),
+              egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
+              egfr_cat = factor(egfr_cat),
+              albuminuria_cat = ifelse(uacr >30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
+              albuminuria_cat = factor(albuminuria_cat))
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 save(temp, file=paste0(today, "_t2d_glp1_imputed_data.Rda"))
 
 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
-
-table <- CreateTableOne(vars = vars, strata = "studydrug2", data = temp %>% filter(!.imp == 0) %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
-                          group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(),  ## these "duplicate" episodes will be removed after we have done the drug-specific analyses
-                        factorVars = factors, test = F)
-
-tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
-## Save to a CSV file
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-#my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
-
-write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
-
-# table by different type of semaglutide
-table2 <- CreateTableOne(vars = vars, strata = "studydrug1", data = temp %>% filter(!.imp == 0) %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
-                          group_by(.imp, patid) %>% filter(!duplicated(studydrug1)) %>% ungroup(),  ## these "duplicate" episodes will be removed after we have done the drug-specific analyses
-                        factorVars = factors, test = F)
-
-tabforprint2 <- print(table2, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
-## Save to a CSV file
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-#my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
-
-write.csv2(tabforprint2, file = paste0(today, "_baseline_table2.csv"))
-
-
 n.studydrug.vars <- sum(grepl("studydrug", colnames(temp)))
+
+for (m in 1:n.studydrug.vars) {
+  
+  studydrug_var = paste0("studydrug", m)
+  
+  table <- CreateTableOne(vars = vars, strata = studydrug_var, data = temp %>% filter(!.imp == 0) %>%  
+                            group_by(.imp, patid) %>% filter(!duplicated(!!sym(studydrug_var))) %>% ungroup(),  
+                          factorVars = factors, test = F)
+  
+  tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+  
+  ## Save to a CSV file
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+  write.csv2(tabforprint, file = paste0(today, "_baseline_table_studydrug", m, ".csv"))
+  
+}
+
 
 # events rates (sum of events divided by sum of person-years) by studydrug
 outcomes <- c("ckd_egfr40", "ckd_egfr50", "ckd_egfr50_5y"#, "macroalb", "dka", "side_effect", "death", "amputation"
               )
-
-for (k in outcomes) {
-  censvar_var=paste0(k, "_censvar")
-  censtime_var=paste0(k, "_censtime_yrs")  
-  
-  for (p in levels(as.factor(temp$studydrug2))) {
-    events <- temp %>% filter(.imp !=0 & studydrug2 == p) %>% select(censvar_var) %>% sum()
-    pyears <- temp %>% filter(.imp !=0 & studydrug2 == p) %>% select(censtime_var) %>% sum()
-    print(paste0(p, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
-    rm(events)
-    rm(pyears)
-  }
-  rm(censvar_var)
-  rm(censtime_var)
-}
-
 sensitivity_outcome <- "ckd_egfr50_sens"
 
-for (k in sensitivity_outcome) {
+for (m in 1:n.studydrug.vars) {  
   
-  for (m in 1:n.studydrug.vars) {
+  print(paste0("Event rates for ", studydrug_var))
   
-    if (m == 2) { next } else {
+  if (m == 2) { 
+    
+    for (k in outcomes) {
+      censvar_var=paste0(k, "_censvar")
+      censtime_var=paste0(k, "_censtime_yrs")  
+      
+      for (p in levels(temp[[studydrug_var]])) {
+        events <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censvar_var) %>% sum()
+        pyears <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censtime_var) %>% sum()
+        print(paste0(p, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
+        rm(events)
+        rm(pyears)
+      }
+      rm(censvar_var)
+      rm(censtime_var)
+    }
+    
+  } else {
+    
+    for (k in sensitivity_outcome) {
       
       studydrug_var = paste0("studydrug", m)
       censvar_var=paste0(sensitivity_outcome, m, "_censvar")
       censtime_var=paste0(sensitivity_outcome, m, "_censtime_yrs")  
-      
-      print(paste0("Event rates for ", studydrug_var))
       
       for (p in levels(as.factor(temp[[studydrug_var]]))) {
         events <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censvar_var) %>% sum()

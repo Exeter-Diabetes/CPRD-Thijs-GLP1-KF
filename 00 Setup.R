@@ -109,8 +109,9 @@ cols <- c(cols, "DPP4 + SU" = "#CC79A7", "GLP1 + SGLT2" = "#56B4E9")
 # variables to be shown in tables
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
-          "pretriglyceride", "prehba1c",  "preegfr",
-          "uacr", "albuminuria_unconfirmed", "albuminuria",
+          "pretriglyceride", "prehba1c",  
+          "preegfr", "egfr_cat",
+          "uacr", "albuminuria_unconfirmed", "albuminuria", "albuminuria_cat",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "genital_infection", "hosp_admission_prev_year",
           "initiation_year",
