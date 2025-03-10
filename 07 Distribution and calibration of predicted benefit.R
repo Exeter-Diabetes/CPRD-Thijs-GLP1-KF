@@ -5,11 +5,10 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_GLP1_imputed_data_with_observed_surv.Rda"))
+load(paste0(today, "_t2d_glp1_imputed_data_with_observed_surv.Rda"))
 
-m = 2
-studydrug_var = paste0("studydrug", m)
-weights_overlap = paste0("overlap", m)
+studydrug_var = paste0("studydrug", main)
+weights_overlap = paste0("overlap", main)
 drug_levels <- levels(cohort[[studydrug_var]])
 ############################1 DISTRIBUTION/CALIBRATION of pARR################################################################
 

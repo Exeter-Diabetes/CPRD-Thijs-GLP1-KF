@@ -2,14 +2,15 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
 source("00 Setup.R")
 
-########################1 PREPARE DATASET####################################################################
-
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 load(paste0(today, "_t2d_glp1_imputed_data_withweights_recalibrated.Rda"))
 
 # select studydrug variable
-m = 2
-studydrug_var = paste0("studydrug", m)
+studydrug_var = paste0("studydrug", main)
+
+########################1 PREPARE DATASET####################################################################
+
+
 
 centre_and_reference <- function(df, covariates) {
   df %>%
@@ -24,7 +25,7 @@ outcome_variables <- paste0("(", paste(outcomes_per_drugclass, collapse = "|"), 
 
 cohort <- cohort %>%
   mutate(across(contains("predrug_"), as.logical),
-         hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
+        # hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
          INS=as.logical(INS),
          MFN=as.logical(MFN),
          malesex=as.factor(malesex),
@@ -41,7 +42,7 @@ cohort <- cohort %>%
   centre_and_reference(covariates)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-save(cohort, file=paste0(today, "_data_centred_predictors.Rda"))
+save(cohort, file=paste0(today, "_t2d_glp1_data_centred_predictors.Rda"))
 
 ############################2 FIT WEIGHTED COX MODEL AND ESTIMATE COUNTERFACTUAL OBSERVED SURVIVAL################################################################
 
@@ -56,7 +57,7 @@ for (k in outcomes_per_drugclass) {
   for (i in 1:n.imp) {
     # load minimal dataset
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-    load(paste0(today, "_data_centred_predictors.Rda"))
+    load(paste0(today, "_t2d_glp1_data_centred_predictors.Rda"))
     
     cohort <- cohort %>% filter(.imp == i)
     

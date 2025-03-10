@@ -12,21 +12,31 @@ load(paste0(today, "_t2d_glp1_imputed_data.Rda"))
 
 # as the data have been imputed, take each imputed dataset, calculate weights in them, then stack them again at the end
 
-# for computational speed, keep minimal dataset only
-temp <- temp %>% filter(.imp != 0) %>% select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate")
-
 # weight variables for each studydrug variable
 n.studydrug.vars <- sum(grepl("studydrug", colnames(temp)))
 
+# for computational speed, keep minimal dataset only for each studydrug variable
+# first rename full dataset
+temp_all <- temp
+
 for (m in 1:n.studydrug.vars) {
+  studydrug_var = paste0("studydrug", m)
+  
+  temp <- temp_all %>% filter(.imp != 0) %>% select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate")
   
   # create empty variables for weights
   temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- NA
   
+  temp <- temp %>% 
+    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
+    arrange(dstartdate) %>% 
+    filter(!duplicated(!!sym(studydrug_var))) %>% 
+    ungroup()
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+  save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", m, ".Rda"))
+  rm(temp)
 }  
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_0.Rda"))
-rm(temp)
+rm(temp_all)
 gc()
 
 # calculate weights
@@ -37,28 +47,19 @@ for (m in 1:n.studydrug.vars) {
   print(paste0("Processing data for variable studydrug", m, collapse = ""))
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-  load(paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", m-1, ".Rda"))
-  
-  # remove observations that are duplicate for this studydrug level - these should not be included in weight calculations
-  # (they will be kept NA and added at the end)
-  temp_non_used_observations <- temp %>% 
-    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-    arrange(dstartdate) %>% 
-    filter(duplicated(!!sym(studydrug_var))) %>% 
-    ungroup()
-  
-  temp <- temp %>% 
-    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-    arrange(dstartdate) %>% 
-    filter(!duplicated(!!sym(studydrug_var))) %>% 
-    ungroup()
-  
-  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-  save(temp_non_used_observations, file=paste0(today, "_t2d_glp1_redundant_observations_", m, ".Rda"))
-  rm(temp_non_used_observations)
+  load(paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", m, ".Rda"))
+
   gc()
   
   ps.formula <- formula(paste0("studydrug", m, " ~ ", paste(covariates, collapse=" + ")))
+  
+  if (m != 2) {
+    # only analyse dual treatment group in main analysis variable
+    temp <- temp %>% filter(!!sym(studydrug_var) != "GLP1 + SGLT2") %>% 
+      mutate(
+        !!sym(studydrug_var) := droplevels(!!sym(studydrug_var))
+      )
+  }
   
   # force temp to be data.frame() for SumStat function
   temp <- temp %>% as.data.frame(temp)
@@ -91,61 +92,80 @@ for (m in 1:n.studydrug.vars) {
     rm(weights)
     gc()
   }
+  
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-  load(paste0(today, "_t2d_glp1_redundant_observations_", m, ".Rda"))
-  temp <- temp %>% rbind(temp_non_used_observations)
-  
-  save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", m, ".Rda"))
-  
+  save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_withweights_", m, ".Rda"))
   rm(temp)
-  rm(temp_non_used_observations)
   gc()
 }
-
-# rename dataset with weights for merging
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", n.studydrug.vars, ".Rda"))
-temp2 <- temp
-rm(temp)
 
 # add weights to imputed dataset with all variables (load this one first)
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 load(paste0(today, "_t2d_glp1_imputed_data.Rda"))
 
-# unimputed dataset
-temp3 <- temp %>% filter(.imp == 0)
-# imputed datasets but with all variables
-temp <- temp %>% filter(.imp != 0)
-
+temp_all <- temp %>% filter(.imp != 0) 
+rm(temp)
+gc()
 for (m in 1:n.studydrug.vars) {
   
-  # add empty variables for weights to unimputed dataset so that they can be combined later
-  temp3[[paste0("IPTW", m, collapse = "")]] <- temp3[[paste0("overlap", m, collapse = "")]] <- NA
+  studydrug_var = paste0("studydrug", m)
+  print(studydrug_var)
   
-}  
-
-# ensure rows in temp and temp2 (imputed datasets without and with weights) are in the same order
-temp <- temp %>% 
-  group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-  arrange(dstartdate) %>% 
-  ungroup()
-
-temp2 <- temp2 %>% 
-  group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-  arrange(dstartdate) %>% 
-  ungroup()
-
-# add IPTW and overlap weights to full imputed dataset
-temp <- temp %>% cbind(temp2 %>% select(contains("overlap"), contains("IPTW")))
+  # load dataset with weights for merging
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+  load(paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_withweights_", m, ".Rda"))
   
-# and combine with unimputed dataset
-cohort <- rbind(temp3, temp)
-
-rm(temp)
-rm(temp2)
-rm(temp3)
-
-# save dataset with weights so this can be used in subsequent scripts
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-save(cohort, file=paste0(today, "_t2d_glp1_imputed_data_withweights.Rda"))
-#load(paste0(today, "_t2d_glp1_imputed_data_withweights.Rda"))
+  temp <- temp %>% 
+    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
+    arrange(dstartdate) %>% 
+    ungroup()
+  
+  # ensure temp_all is in same row order as dataset with studydrug variable it will be merged with
+  temp2 <- temp_all %>%
+    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
+    arrange(dstartdate) %>% 
+    filter(!duplicated(!!sym(studydrug_var))) %>% 
+    {if (m != 2) filter(., !!sym(studydrug_var) != "GLP1 + SGLT2") else .} %>%
+    ungroup()
+  
+  cohort <- temp2 %>% cbind(temp %>% select(contains("overlap"), contains("IPTW")))
+  
+  rm(temp)
+  rm(temp2)
+  
+  if (m == 1) {
+    cohort <- cohort %>% mutate(
+      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("SU", "DPP4", "SGLT2", "GLP1"))
+    )
+  }
+  
+  if (m == 2) {
+    
+    cohort <- cohort %>% mutate(
+      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4 + SU", "GLP1", "SGLT2", "GLP1 + SGLT2"))
+    )
+    
+    new_studydrug_var <- paste0("studydrug", n.studydrug.vars+1)
+    new_weights_overlap = paste0("overlap", n.studydrug.vars+1)
+    new_weights_iptw = paste0("IPTW", n.studydrug.vars+1)
+    cohort[[new_studydrug_var]] <- relevel(cohort[[paste0("studydrug", m)]], ref = "SGLT2")
+    cohort[[new_weights_overlap]] <- cohort[[paste0("overlap", m)]]
+    cohort[[new_weights_iptw]] <- cohort[[paste0("IPTW", m)]]
+    
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+    save(cohort, file=paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", n.studydrug.vars+1, ".Rda"))
+  }
+  
+  if (m==3) {  
+    cohort <- cohort %>% mutate(
+      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4 + SU", "SGLT2", "Oral semaglutide", "Subcutaneous semaglutide", "Other GLP1"))
+    )
+  }
+  
+  # save dataset with weights so this can be used in subsequent scripts
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+  save(cohort, file=paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", m, ".Rda"))
+  
+  
+}
+rm(temp_all)

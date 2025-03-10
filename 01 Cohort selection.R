@@ -398,6 +398,7 @@ for (m in 1:n.studydrug.vars) {
   studydrug_var = paste0("studydrug", m)
   
   table <- CreateTableOne(vars = vars, strata = studydrug_var, data = temp %>% filter(!.imp == 0) %>%  
+                            {if (m != 2) filter(., !!sym(studydrug_var) != "GLP1 + SGLT2") else .} %>%
                             group_by(.imp, patid) %>% filter(!duplicated(!!sym(studydrug_var))) %>% ungroup(),  
                           factorVars = factors, test = F)
   

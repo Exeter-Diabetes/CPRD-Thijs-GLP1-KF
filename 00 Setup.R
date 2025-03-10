@@ -127,3 +127,6 @@ factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed
              "ncurrtx", "statin", "INS", "ACEi_or_ARB")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")
+
+# set main studydrug variable
+main = 2

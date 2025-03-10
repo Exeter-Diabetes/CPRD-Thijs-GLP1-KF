@@ -2,18 +2,17 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
 source("00 Setup.R")
 
+# set studydrug variable that will be used to define reference group
+studydrug_var = paste0("studydrug", main)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_glp1_imputed_data_withweights.Rda"))
+load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", m, ".Rda"))
 
 cohort <- cohort %>%
   mutate(ckdpc_50egfr_survival=(100-ckdpc_50egfr_score)/100)
 
 temp <- cohort
 
-# set studydrug variable that will be used to define reference group
-m = 2
-studydrug_var = paste0("studydrug", m)
 reference_group = levels(temp[[studydrug_var]])[1]
 ############################1 ASSESSING CALIBRATION OF RISK SCORE IN PRESERVED EGFR################################################################
 
@@ -149,11 +148,11 @@ p_uncal_bydeciles_presegfr_ref <- ggplot(data=bind_rows(empty_tick,obs_v_pred), 
         legend.position = "none") +
   #ggtitle("Predicted risk of kidney disease progression") +
   coord_cartesian(xlim = c(0,4.5), ylim = c(0,4.5)) +
-  ggtitle("Uncalibrated risk score in preserved eGFR (≥60mL/min/1.73m2)")
+  ggtitle("Uncalibrated risk score (≥60mL/min/1.73m2)")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 tiff(paste0(today, "_uncalibrated_risk_score_calibration_presegfr.tiff"), width=6, height=5.5, units = "in", res=800) 
-p_uncal_bydeciles_presegfr_ref
+print(p_uncal_bydeciles_presegfr_ref)
 dev.off()
 
 ## C-stat
@@ -389,12 +388,12 @@ p_uncal_bydeciles_redegfr_ref <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
         legend.position = "none") +
   #ggtitle("Predicted risk of kidney disease progression") +
   coord_cartesian(xlim = c(0,23.5), ylim = c(0,23.5)) +
-  ggtitle("Uncalibrated risk score in reduced eGFR (<60mL/min/1.73m2)")
+  ggtitle("Uncalibrated risk score (<60mL/min/1.73m2)")
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 tiff(paste0(today, "_uncalibrated_risk_score_calibration_redegfr.tiff"), width=6, height=5.5, units = "in", res=800) 
-p_uncal_bydeciles_redegfr_ref
+print(p_uncal_bydeciles_redegfr_ref)
 dev.off()
 
 ## C-stat
@@ -627,11 +626,11 @@ p_recal_bydeciles_redegfr_ref <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
         legend.position = "none") +
   #ggtitle("Predicted risk of kidney disease progression") +
   coord_cartesian(xlim = c(0,23.5), ylim = c(0,23.5)) +
-  ggtitle("Recalibrated risk score in reduced eGFR (<60mL/min/1.73m2)")
+  ggtitle("Recalibrated risk score (<60mL/min/1.73m2)")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 tiff(paste0(today, "_uncalibrated_risk_score_calibration_redegfr_recal.tiff"), width=6, height=5.5, units = "in", res=800) 
-p_recal_bydeciles_redegfr_ref
+print(p_recal_bydeciles_redegfr_ref)
 dev.off()
 
 
@@ -708,13 +707,13 @@ for (i in 1:n.imp) {
 bh_recal_redegfr_recal <- mean(bh_new_redegfr_recal)
 bh_recal_se_redegfr_recal <- sqrt(mean(se_bh_new_redegfr_recal)^2 + (1+1/n.imp)*var(bh_new_redegfr_recal))
 # print baseline hazard with 95% CI
-print(paste0("Baseline hazard for recalibrated score in subjects with reduced eGFR", bh_recal_redegfr_recal, ", 95% CI ", bh_recal_redegfr_recal-1.96*bh_recal_se_redegfr_recal, "-", bh_recal_redegfr_recal+1.96*bh_recal_se_redegfr_recal))
+print(paste0("Baseline hazard for recalibrated score in subjects with reduced eGFR: ", bh_recal_redegfr_recal, ", 95% CI ", bh_recal_redegfr_recal-1.96*bh_recal_se_redegfr_recal, "-", bh_recal_redegfr_recal+1.96*bh_recal_se_redegfr_recal))
 
 # pool calibration slope results
 coef_recal_redegfr_recal <- mean(cal_slope_redegfr_recal)
 coef_recal_se_redegfr_recal <- sqrt(mean(var_slope_redegfr_recal) + (1+1/n.imp)*var(cal_slope_redegfr_recal))
 # print calibration slope with 95% CI
-print(paste0("Calibration slope for recalibrated score in subjects with reduced eGFR", coef_recal_redegfr_recal, ", 95% CI ", coef_recal_redegfr_recal-1.96*coef_recal_se_redegfr_recal, "-", coef_recal_redegfr_recal+1.96*coef_recal_se_redegfr_recal))
+print(paste0("Calibration slope for recalibrated score in subjects with reduced eGFR: ", coef_recal_redegfr_recal, ", 95% CI ", coef_recal_redegfr_recal-1.96*coef_recal_se_redegfr_recal, "-", coef_recal_redegfr_recal+1.96*coef_recal_se_redegfr_recal))
 
 print(paste0("Brier score for recalibrated risk score in subjects with reduced eGFR: ", mean(brier_raw_redegfr), ", 95% CI ", mean(brier_raw_redegfr)-1.96*brier_raw_se_pooled_redegfr, "-", mean(brier_raw_redegfr)+1.96*brier_raw_se_pooled_redegfr))
 

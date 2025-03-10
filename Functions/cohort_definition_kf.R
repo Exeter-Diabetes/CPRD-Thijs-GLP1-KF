@@ -50,17 +50,18 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
                                    ifelse(earliest_start == dstartdate, "first", 
                                           ifelse(latest_start == dstartdate, "last", "other")))) 
   
-  # remove drug episodes that are only a change in drug substance, with the exception of starting semaglutide
+  # remove drug episodes that are only a change in drug substance, with the exception of starting a GLP1-RA
   cohort <- cohort %>% 
     filter(
-      (substance_start_only == 1 & grepl("semaglutide", drug_substance, ignore.case = T)) | substance_start_only == 0
+      (substance_start_only == 1 & grepl("tide", drug_substance, ignore.case = T)) | substance_start_only == 0
     ) %>% mutate(
       # create other variables to define study drug: 
-      ## combine DPP4 + SU as one group (studydrug2) and add category for combination therapy with GLP1 and SGLT2
-      ## create distinct level for semaglutide vs other GLP1s (studydrug3), 
-      ## and distinct levels for separate oral vs sc semaglutide (studydrug4)
-      studydrug2 = ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4 + SU", ifelse(studydrug1 == "SGLT2" & GLP1 == 1 | studydrug1 == "GLP1" & SGLT2 == 1,
-                                                                             "GLP1 + SGLT2", studydrug1)),
+      # create combination group for dual therapy with SGLT2 and GLP1 (studydrug1)
+      ## combine DPP4 + SU as one group (studydrug2) 
+      ## create distinct level for oral vs sc semaglutide semaglutide vs other GLP1s (studydrug3)
+      studydrug1 = ifelse(studydrug1 == "SGLT2" & GLP1 == 1 | studydrug1 == "GLP1" & SGLT2 == 1,
+                                 "GLP1 + SGLT2", studydrug1),
+      studydrug2 = ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4 + SU", studydrug1),
       studydrug3 = ifelse(studydrug1 == "GLP1", ifelse(grepl("semaglutide", drug_substance, ignore.case=T), 
                                                       ifelse(grepl("oral", drug_substance, ignore.case=T), 
                                                              "Oral semaglutide", "Subcutaneous semaglutide"), 

@@ -41,10 +41,11 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                 
                                 gp_end_date,
                                 # death_date,
-                                if_else(studydrug1!="GLP1", next_semaglutide_subcut_start, as.Date("2050-01-01")),
-                                if_else(studydrug1!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
-                                if_else(studydrug1!="SU", next_su_start, as.Date("2050-01-01")),
-                                if_else(studydrug1!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
+                                if_else(studydrug1!="GLP1"  & studydrug1!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
+                                if_else(studydrug1!="SGLT2" & studydrug1!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                                # censor subjects if starting Su or DPP4 only if in those groups
+                                if_else(studydrug1=="DPP4", next_su_start, as.Date("2050-01-01")),
+                                if_else(studydrug1=="SU", next_dpp4_start, as.Date("2050-01-01")),
                                 #    dstopdate_class+183,
                                 na.rm=TRUE),
            
@@ -53,11 +54,9 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                 gp_end_date,
                                 # death_date,           
                                 if_else(studydrug3!="Other GLP1", next_other_glp1_start, as.Date("2050-01-01")),
-                                if_else(studydrug3!="Subcutaneous semaglutide", next_other_glp1_start, as.Date("2050-01-01")),
+                                if_else(studydrug3!="Subcutaneous semaglutide", next_semaglutide_subcut_start, as.Date("2050-01-01")),
                                 if_else(studydrug3!="Oral semaglutide", next_semaglutide_oral_start, as.Date("2050-01-01")),
                                 if_else(studydrug3!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
-                                if_else(studydrug3!="SU", next_su_start, as.Date("2050-01-01")),
-                                if_else(studydrug3!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
                                 #    dstopdate_class+183,
                                 na.rm=TRUE),
            
