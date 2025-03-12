@@ -6,7 +6,7 @@ source("00 Setup.R")
 studydrug_var = paste0("studydrug", main)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", m, ".Rda"))
+load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
 
 cohort <- cohort %>%
   mutate(ckdpc_50egfr_survival=(100-ckdpc_50egfr_score)/100)

@@ -25,7 +25,7 @@ outcome_variables <- paste0("(", paste(outcomes_per_drugclass, collapse = "|"), 
 
 cohort <- cohort %>%
   mutate(across(contains("predrug_"), as.logical),
-        # hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
+         # hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
          INS=as.logical(INS),
          MFN=as.logical(MFN),
          malesex=as.factor(malesex),
@@ -47,7 +47,7 @@ save(cohort, file=paste0(today, "_t2d_glp1_data_centred_predictors.Rda"))
 ############################2 FIT WEIGHTED COX MODEL AND ESTIMATE COUNTERFACTUAL OBSERVED SURVIVAL################################################################
 
 # clear R memory to ensure memory limit not exceeded
-rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "m")))
+rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "main")))
 
 # if evaluating other risk scores, other relevant outcomes may be added
 outcomes_per_drugclass <- "ckd_egfr50"
@@ -61,8 +61,8 @@ for (k in outcomes_per_drugclass) {
     
     cohort <- cohort %>% filter(.imp == i)
     
-    studydrug_var = paste0("studydrug", m)
-    weights_overlap = paste0("overlap", m)
+    studydrug_var = paste0("studydrug", main)
+    weights_overlap = paste0("overlap", main)
     drug_levels <- levels(cohort[[studydrug_var]])
     
     # clear R memory
@@ -73,57 +73,57 @@ for (k in outcomes_per_drugclass) {
     
     # fit overlap-weighted cox model
     f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  ", studydrug_var, " + ", paste(covariates, collapse=" + "))) 
-    model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE, weights=weights_overlap)
+    model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE, weights=cohort[[weights_overlap]])
     
     for (n in 1:length(drug_levels)) { 
       
-    drug_name <- drug_levels[n]
-
-    observed_data_name <- paste0("observed_", drug_name)
-    estimate_name <- paste0("estimate_", drug_name)
-    se_name <- paste0("se_", drug_name)
-    
-    # create counterfactual dataset where everyone is treated with drug_name
-    obs_data <- cohort %>%
-      # create variable for factual study arm for reference later
-      mutate(studydrug_original=!!sym(studydrug_var),
-             !!sym(studydrug_var) := drug_name,
-             rowno=row_number())
-    
-    print(paste0("Survival estimates for", drug_name, " in imputation ", i, "  (outcome ", k, ")"))
-    
-    # get counterfactual ("observed" weighted) survival
-    observed <- survfit(model, newdata=as.data.frame(obs_data)) %>%
-      tidy() %>%
-      filter(time == 3) %>%
-      pivot_longer(cols=-c(time, n.risk, n.event, n.censor), names_to = c(".value", "group"), names_pattern = "(.*)\\.(.*)") %>%
-      select(group, estimate, std.error) %>%
-      mutate(group=as.numeric(group)) %>%
-      inner_join(obs_data, by=c("group"="rowno")) %>% 
-      mutate(
-        !!sym(estimate_name) := estimate,
-        !!sym(se_name) := std.error) %>% 
-      select(-c(estimate, std.error))
-    
-    # rename dataset
-    assign(observed_data_name, observed)
-    observed_data <- get(observed_data_name)
-    
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-    # save results
-    save(observed_data, file=paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
-    
-    rm(obs_data)
-    rm(observed)
-    rm(observed_data)
+      drug_name <- drug_levels[n]
+      
+      observed_data_name <- paste0("observed_", drug_name)
+      estimate_name <- paste0("estimate_", drug_name)
+      se_name <- paste0("se_", drug_name)
+      
+      # create counterfactual dataset where everyone is treated with drug_name
+      obs_data <- cohort %>%
+        # create variable for factual study arm for reference later
+        mutate(studydrug_original=!!sym(studydrug_var),
+               !!sym(studydrug_var) := drug_name,
+               rowno=row_number())
+      
+      print(paste0("Survival estimates for", drug_name, " in imputation ", i, "  (outcome ", k, ")"))
+      
+      # get counterfactual ("observed" weighted) survival
+      observed <- survfit(model, newdata=as.data.frame(obs_data)) %>%
+        tidy() %>%
+        filter(time == 3) %>%
+        pivot_longer(cols=-c(time, n.risk, n.event, n.censor), names_to = c(".value", "group"), names_pattern = "(.*)\\.(.*)") %>%
+        select(group, estimate, std.error) %>%
+        mutate(group=as.numeric(group)) %>%
+        inner_join(obs_data, by=c("group"="rowno")) %>% 
+        mutate(
+          !!sym(estimate_name) := estimate,
+          !!sym(se_name) := std.error) %>% 
+        select(-c(estimate, std.error))
+      
+      # rename dataset
+      assign(observed_data_name, observed)
+      observed_data <- get(observed_data_name)
+      
+      setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+      # save results
+      save(observed_data, file=paste0(today, "_adjusted_surv_", k,"_", drug_name,"_imp.", i, ".Rda"))
+      
+      rm(obs_data)
+      rm(observed)
+      rm(observed_data)
     }
     # clear environment
-    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "m", "drug_levels", "outcomes_per_drugclass")))
+    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "main", "drug_levels", "outcomes_per_drugclass")))
   }
   
-
+  
   # after separately estimating counterfactual survival probabilities in each imputation, we will now combine these in the main dataset
-
+  
   for (n in 1:length(drug_levels)) { 
     
     drug_name <- drug_levels[n]
@@ -136,7 +136,7 @@ for (k in outcomes_per_drugclass) {
     # join estimates from each imputation in one dataframe
     for (i in 1:n.imp) {
       setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-      load(paste0(today, "_adjusted_surv_",k,"_", drug_name, "_imp.", i, ".Rda"))
+      load(paste0(today, "_adjusted_surv_", k,"_", drug_name, "_imp.", i, ".Rda"))
       
       observed_data <- get(observed_data_name)
       
@@ -150,22 +150,22 @@ for (k in outcomes_per_drugclass) {
     assign(observed_data_name, temp)
     observed_data <- get(observed_data_name)
     rm(temp)
-
+    
     if (n == 1) {
-      studydrug_var = paste0("studydrug", m)
+      studydrug_var = paste0("studydrug", main)
       
       benefits <- observed_data
       benefits[[studydrug_var]] <- benefits$studydrug_original
       benefits <- benefits %>% select(-studydrug_original)
-
+      
     } else {
-
+      
       # combine counterfactual observed survival probabilities
       benefits <- observed_data %>% select(group, .imp, contains("estimate_"), contains("se_")) %>%
         inner_join(benefits, by = c("group", ".imp")) 
       
     }
-  
+    
   }
   
   
@@ -205,13 +205,13 @@ for (k in outcomes_per_drugclass) {
   rm(benefits)
 }
 
-rm(list = setdiff(ls(), c("n.imp", "k", "today", "m", "outcomes_per_drugclass")))
+rm(list = setdiff(ls(), c("n.imp", "k", "today", "main", "outcomes_per_drugclass")))
 
 ### add counterfactual observed absolute risk reductions to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 load(paste0(today, "_t2d_glp1_imputed_data_withweights_recalibrated.Rda"))
 
-studydrug_var = paste0("studydrug", m)
+studydrug_var = paste0("studydrug", main)
 
 for (k in outcomes_per_drugclass) {
   
