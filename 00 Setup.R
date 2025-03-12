@@ -104,7 +104,7 @@ outcomes_per_drugclass <- c("ckd_egfr50")
 # set default colour-blind accessible colours for figures later on
 cols <- c("SGLT2" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4" = "#0072B2", "TZD" = "#D55E00")
 #in further analyses, the DPP4 + SU group will be combined, and we will use the dpp4 colour for this (strongest contrast)
-cols <- c(cols, "DPP4 + SU" = "#CC79A7", "GLP1 + SGLT2" = "#56B4E9")
+cols <- c(cols, "DPP4 + SU" = "#CC79A7", "GLP1 + SGLT2" = "#0072B2")
 
 # variables to be shown in tables
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables

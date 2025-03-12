@@ -14,7 +14,7 @@ studydrug_var = paste0("studydrug", main)
 
 centre_and_reference <- function(df, covariates) {
   df %>%
-    mutate(across(all_of(covariates), ~ if(is.numeric(.)) . - mean(., na.rm = TRUE) else . ),  # Center numeric variables
+    mutate(across(all_of(covariates), ~ if(is.numeric(.)) . - mean(., na.rm = TRUE) else . ),  # Centre numeric variables
            across(all_of(covariates), ~ if(is.logical(.)) . == names(sort(table(.), decreasing = TRUE))[1] else . ) ,  # Set most frequent level as reference for logical
            across(all_of(covariates), ~ if(is.factor(.)) relevel(., ref = names(sort(table(.), decreasing = TRUE))[1]) else . ))  # Set most frequent level as reference for factor
 }
@@ -90,7 +90,7 @@ for (k in outcomes_per_drugclass) {
                !!sym(studydrug_var) := drug_name,
                rowno=row_number())
       
-      print(paste0("Survival estimates for", drug_name, " in imputation ", i, "  (outcome ", k, ")"))
+      print(paste0("Estimating counterfactual survival with ", drug_name, " in imputation ", i, "  (outcome ", k, ")"))
       
       # get counterfactual ("observed" weighted) survival
       observed <- survfit(model, newdata=as.data.frame(obs_data)) %>%
@@ -138,7 +138,7 @@ for (k in outcomes_per_drugclass) {
       setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
       load(paste0(today, "_adjusted_surv_", k,"_", drug_name, "_imp.", i, ".Rda"))
       
-      observed_data <- get(observed_data_name)
+      # observed_data <- get(observed_data_name)
       
       temp <- temp %>% rbind(observed_data)
       
@@ -170,7 +170,7 @@ for (k in outcomes_per_drugclass) {
   
   
   # create variables for survival differences between each drug combination
-  combinations <- combn(drug_levels, 2, simplify = FALSE)
+  combinations <- combn(rev(drug_levels), 2, simplify = FALSE)
   
   for (comb in combinations) {
     # obtain drug names in combination
@@ -190,7 +190,7 @@ for (k in outcomes_per_drugclass) {
           !!sym(estimate_col_1) - !!sym(estimate_col_2),
         
         !!paste0("se_survdiff_", drug_name_1, "_", drug_name_2) := 
-          sqrt(!!sym(se_col_1)^2 + !!sym(se_col_2)^2)
+          sqrt((!!sym(se_col_1))^2 + (!!sym(se_col_2))^2)
       )
   }
   
