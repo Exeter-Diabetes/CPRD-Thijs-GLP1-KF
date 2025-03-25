@@ -19,8 +19,9 @@ n.studydrug.vars <- sum(grepl("studydrug", colnames(temp)))
 # first rename full dataset
 temp_all <- temp
 
-for (m in 1:n.studydrug.vars) {
-  studydrug_var = paste0("studydrug", m)
+# for (m in 1:n.studydrug.vars) {
+for (m in c(2)) {
+    studydrug_var = paste0("studydrug", m)
   
   temp <- temp_all %>% filter(.imp != 0) %>% select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate")
   
@@ -40,7 +41,10 @@ rm(temp_all)
 gc()
 
 # calculate weights
-for (m in 1:n.studydrug.vars) {
+# for (m in 1:n.studydrug.vars) {
+for (m in c(2)) {
+  
+  if (m != main) {next} else {
   
   studydrug_var = paste0("studydrug", m)
   
@@ -53,7 +57,7 @@ for (m in 1:n.studydrug.vars) {
   
   ps.formula <- formula(paste0("studydrug", m, " ~ ", paste(covariates, collapse=" + ")))
   
-  if (m != 2) {
+  if (m != main) {
     # only analyse dual treatment group in main analysis variable
     temp <- temp %>% filter(!!sym(studydrug_var) != "GLP1 + SGLT2") %>% 
       mutate(
@@ -74,11 +78,11 @@ for (m in 1:n.studydrug.vars) {
                          weight = c("IPW", "overlap"))
 
     # truncate IPTW at 2nd and 98% percentile
-    w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
-                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
+    w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[1],
+                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[1],
                                        ifelse(
-                                         w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
-                                         quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
+                                         w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[2],
+                                         quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[2],
                                          w.overlap$ps.weights$IPW
                                        ))
 
@@ -97,7 +101,10 @@ for (m in 1:n.studydrug.vars) {
   save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_withweights_", m, ".Rda"))
   rm(temp)
   gc()
+  }
 }
+
+############################2 SAVE WEIGHTS################################################################
 
 # add weights to imputed dataset with all variables (load this one first)
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
@@ -106,8 +113,11 @@ load(paste0(today, "_t2d_glp1_imputed_data.Rda"))
 temp_all <- temp %>% filter(.imp != 0) 
 rm(temp)
 gc()
-for (m in 1:n.studydrug.vars) {
+# for (m in 1:n.studydrug.vars) {
+for (m in c(2)) {
   
+  if (m != main) {next} else {
+    
   studydrug_var = paste0("studydrug", m)
   print(studydrug_var)
   
@@ -142,7 +152,7 @@ for (m in 1:n.studydrug.vars) {
   if (m == 2) {
     
     cohort <- cohort %>% mutate(
-      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4 + SU", "GLP1", "SGLT2", "GLP1 + SGLT2"))
+      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4/SU", "GLP1", "SGLT2", "GLP1 + SGLT2"))
     )
     
     new_studydrug_var <- paste0("studydrug", n.studydrug.vars+1)
@@ -158,7 +168,7 @@ for (m in 1:n.studydrug.vars) {
   
   if (m==3) {  
     cohort <- cohort %>% mutate(
-      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4 + SU", "SGLT2", "Oral semaglutide", "Subcutaneous semaglutide", "Other GLP1"))
+      !!sym(studydrug_var) := factor(!!sym(studydrug_var), levels = c("DPP4/SU", "SGLT2", "Oral semaglutide", "Subcutaneous semaglutide", "Other GLP1"))
     )
   }
   
@@ -166,6 +176,6 @@ for (m in 1:n.studydrug.vars) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
   save(cohort, file=paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", m, ".Rda"))
   
-  
+  }
 }
 rm(temp_all)

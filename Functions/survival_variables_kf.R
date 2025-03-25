@@ -14,33 +14,33 @@
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   # Add survival variables for outcomes for main analysis
-  # main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "macroalb", "dka", "amputation", "side_effect")
-  # keep ckd_egfr50 as only outcome for now
-  main_outcomes <- c("ckd_egfr40", "ckd_egfr50")
+  
+  
+  main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "mace", "hf")
   
   cohort <- cohort_dataset %>%
     
     mutate(cens_itt_5_yrs=pmin(dstartdate+(365.25*5),
-                         
+                         hes_end_date,
                          gp_end_date,
-                         # death_date,
+                         death_date,
                          if_else(studydrug2!="GLP1" & studydrug2!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
                          if_else(studydrug2!="SGLT2" & studydrug2!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                          na.rm=TRUE),
 
            
            cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
-                               
+                               hes_end_date,
                                gp_end_date,
-                               # death_date,
+                               death_date,
                                if_else(studydrug2!="GLP1" & studydrug2!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
                                if_else(studydrug2!="SGLT2" & studydrug2!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                                na.rm=TRUE),
            
            cens_sens1_3_yrs=pmin(dstartdate+(365.25*3),
-                                
-                                gp_end_date,
-                                # death_date,
+                                 hes_end_date,
+                                 gp_end_date,
+                                death_date,
                                 if_else(studydrug1!="GLP1"  & studydrug1!="GLP1 + SGLT2", next_glp1_start, as.Date("2050-01-01")),
                                 if_else(studydrug1!="SGLT2" & studydrug1!="GLP1 + SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                                 # censor subjects if starting Su or DPP4 only if in those groups
@@ -50,9 +50,9 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                 na.rm=TRUE),
            
            cens_sens3_3_yrs=pmin(dstartdate+(365.25*3),
-                                
+                                 hes_end_date,
                                 gp_end_date,
-                                # death_date,           
+                                death_date,           
                                 if_else(studydrug3!="Other GLP1", next_other_glp1_start, as.Date("2050-01-01")),
                                 if_else(studydrug3!="Subcutaneous semaglutide", next_semaglutide_subcut_start, as.Date("2050-01-01")),
                                 if_else(studydrug3!="Oral semaglutide", next_semaglutide_oral_start, as.Date("2050-01-01")),
@@ -66,12 +66,12 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
            
            ckd_egfr40_outcome=pmin(egfr_40_decline_date,
                                    postckdstage5date,
-                            #       kf_death_date_any_cause,
+                                   kf_death_date_any_cause,
                                    na.rm=TRUE),
            
            ckd_egfr50_outcome=pmin(egfr_50_decline_date,
                                    postckdstage5date,
-                            #       kf_death_date_any_cause,
+                                   kf_death_date_any_cause,
                                    na.rm=TRUE),
            
            ckd_egfr50_outcome_type=ifelse(
@@ -84,6 +84,15 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                            "Kidney-related death")
              )
            ),
+           
+           mace_outcome=pmin(postdrug_first_myocardialinfarction,
+                             postdrug_first_stroke,
+                             cv_death_date_any_cause,
+                             na.rm=TRUE),
+           
+           hf_outcome=pmin(postdrug_first_heartfailure,
+                           hf_death_date_any_cause,
+                           na.rm=TRUE),
            
            # macroalb_outcome=macroalb_date,
            # 

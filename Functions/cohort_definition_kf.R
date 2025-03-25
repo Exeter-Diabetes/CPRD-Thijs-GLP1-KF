@@ -6,13 +6,13 @@
 ## d) Exclude if start drug within 91 days of registration
 
 ## e) Aged 18+
-## f) GLP1 + SGLT2/DPP4 + SU
-## g) Initiated between 01/01/2014 and end of data (31/03/2024)
+## f) GLP1 + SGLT2/DPP4/SU
+## g) Initiated between 01/01/2014 and end of HES data (31/03/2023)
 ## h) No CVD (broad definition: angina, IHD, MI, PAD, revasc, stroke, TIA (as per NICE but with TIA))
 ## i) No HF before index date
 ## j) No missing eGFR/uACR
 ## k) No advanced CKD (egfr < 20 mL/min/1.73m2 or CKD stage 5) before index date
-## l) Remove further episodes of starting DPP4 + SU if already taking SGLT2i or GLP1 in previous episode (these episodes would overlap)
+## l) Remove further episodes of starting DPP4/SU if already taking SGLT2i or GLP1 in previous episode (these episodes would overlap)
 
 
 # Use "t2d_1stinstance" cohort_dataset which already has a)-d) applied
@@ -30,12 +30,13 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   cohort <- cohort %>% filter(
              (drug_class=="SGLT2" | drug_class=="GLP1" | drug_class=="DPP4" | drug_class=="SU") &
-             dstartdate>=as.Date("2014-01-01")
+             dstartdate>=as.Date("2013-01-01") &
+               dstartdate<=as.Date("2023-03-31")
     ) %>%
     mutate(studydrug1=ifelse(drug_class=="GLP1", "GLP1", ifelse(drug_class=="SGLT2", "SGLT2", 
                                                                 ifelse(drug_class=="DPP4", "DPP4", "SU"))))
   
-  # Remove drug episodes of DPP4 + SU if already on GLP1 + SGLT2 (do not remove GLP1 + SGLT2 episodes if starting dual therapy)
+  # Remove drug episodes of DPP4/SU if already on GLP1 + SGLT2 (do not remove GLP1 + SGLT2 episodes if starting dual therapy)
   cohort <- cohort %>%
     filter(
       !((drug_class=="DPP4" | drug_class=="SU") & (GLP1==1 | SGLT2==1)))
@@ -53,50 +54,50 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   # remove drug episodes that are only a change in drug substance, with the exception of starting a GLP1-RA
   cohort <- cohort %>% 
     filter(
-      (substance_start_only == 1 & grepl("tide", drug_substance, ignore.case = T)) | substance_start_only == 0
+      (drug_class_start == 0 & grepl("tide", drug_substance, ignore.case = T)) | drug_class_start == 1
     ) %>% mutate(
       # create other variables to define study drug: 
       # create combination group for dual therapy with SGLT2 and GLP1 (studydrug1)
-      ## combine DPP4 + SU as one group (studydrug2) 
+      ## combine DPP4/SU as one group (studydrug2) 
       ## create distinct level for oral vs sc semaglutide semaglutide vs other GLP1s (studydrug3)
       studydrug1 = ifelse(studydrug1 == "SGLT2" & GLP1 == 1 | studydrug1 == "GLP1" & SGLT2 == 1,
                                  "GLP1 + SGLT2", studydrug1),
-      studydrug2 = ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4 + SU", studydrug1),
+      studydrug2 = ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4/SU", studydrug1),
       studydrug3 = ifelse(studydrug1 == "GLP1", ifelse(grepl("semaglutide", drug_substance, ignore.case=T), 
                                                       ifelse(grepl("oral", drug_substance, ignore.case=T), 
                                                              "Oral semaglutide", "Subcutaneous semaglutide"), 
-                                                      "Other GLP1"), ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4 + SU", studydrug1))
+                                                      "Other GLP1"), ifelse(studydrug1 %in% c("DPP4", "SU"), "DPP4/SU", studydrug1))
       
     )
   
   
   q <- cohort %>% .$patid %>% unique() %>% length()
-  print(paste0("Number of subjects of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: ", q))
+  print(paste0("Number of subjects of starting an GLP1 or SGLT2 or comparator drugs DPP4/SU between 2014-2023: ", q))
   
   q <- cohort %>% nrow()
-  print(paste0("Number of drug episodes of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: ", q))
+  print(paste0("Number of drug episodes of starting an GLP1 or SGLT2 or comparator drugs DPP4/SU between 2014-2023: ", q))
   
 
   # h) Remove if CVD before index date
   
-  cohort <- cohort %>%
-    mutate(predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0)) 
-  
-  q <- cohort %>% filter(predrug_cvd == 1) %>% nrow()
-  
-  print(paste0("Number of drug episodes excluded with established CVD: ", q))
-  
-  cohort <- cohort %>%
-    filter(predrug_cvd==0)
-  
-  
-  # i) Remove if HF before index date
-  q <- cohort %>% filter(predrug_heartfailure == 1) %>% nrow()
-  
-  print(paste0("Number of drug episodes excluded with established HF: ", q))
-  
-  cohort <- cohort %>%
-    filter(predrug_heartfailure==0)
+  # cohort <- cohort %>%
+  #   mutate(predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0)) 
+  # 
+  # q <- cohort %>% filter(predrug_cvd == 1) %>% nrow()
+  # 
+  # print(paste0("Number of drug episodes excluded with established CVD: ", q))
+  # 
+  # cohort <- cohort %>%
+  #   filter(predrug_cvd==0)
+  # 
+  # 
+  # # i) Remove if HF before index date
+  # q <- cohort %>% filter(predrug_heartfailure == 1) %>% nrow()
+  # 
+  # print(paste0("Number of drug episodes excluded with established HF: ", q))
+  # 
+  # cohort <- cohort %>%
+  #   filter(predrug_heartfailure==0)
   
   # j) Remove if missing CKD status
   
@@ -114,7 +115,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       !(is.na(preckdstage) & is.na(preegfr) | is.na(uacr))
     )
 
-  # k) Remove if CKD before index date
+  # k) Remove if ESKD before index date or eGFR <60
   
   q <- cohort %>% filter(preckdstage=="stage_5" | predrug_ckd5_code == 1 | preegfr < 20) %>% nrow()
   
@@ -123,13 +124,13 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   cohort <- cohort %>%
     filter(!(preegfr < 20 | preckdstage=="stage_5" | predrug_ckd5_code == 1) )
 
-  # q <- cohort %>% filter(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) %>% nrow()
-  # 
-  # print(paste0("Number of drug episodes excluded with established eGFR <60 mL/min/1.73m2: ", q))
-  # 
-  # cohort <- cohort %>%
-  #   filter(!(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) )
-  # 
+  q <- cohort %>% filter(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) %>% nrow()
+
+  print(paste0("Number of drug episodes excluded with established eGFR <60 mL/min/1.73m2: ", q))
+
+  cohort <- cohort %>%
+    filter(!(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) )
+
   # q <- cohort %>% filter(uacr >= 30) %>% nrow()
   # 
   # print(paste0("Number of drug episodes excluded with uACR ≥30mg/mmol: ", q))
@@ -138,7 +139,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   #   filter(uacr < 30)
   
   
-  # m) Remove further episodes of starting DPP4 + SU if already taking SGLT2i or GLP1 in previous episode (these episodes would overlap)
+  # m) Remove further episodes of starting DPP4/SU if already taking SGLT2i or GLP1 in previous episode (these episodes would overlap)
   #    or episodes of taking DPP4 following episode of SU and vice versa
   q <- cohort %>% filter(
     episode_order %in% c("last", "other") & (
@@ -147,7 +148,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       (drug_class == "SU" & DPP4 == 1))
   ) %>% nrow()
   
-  print(paste0("Number of drug episodes removed (e.g. subsequent episode of starting DPP4 + SU after episode of SGLT2 or GLP1): ", q))
+  print(paste0("Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after episode of SGLT2 or GLP1): ", q))
   
   cohort <- cohort %>%
     filter(!(
@@ -171,8 +172,8 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   ## Use all SGLT2, GLP1, DPP4, and SU starts to code up later censoring
   
   #
-  ### Also get latest GLP1 and SGLT2 stop dates before drug start for DPP4 + SU arms 
-  ### we need this for sensitivity analysis where we exclude people who tried SGLT2 in the year before starting a DPP4 + SU.
+  ### Also get latest GLP1 and SGLT2 stop dates before drug start for DPP4/SU arms 
+  ### we need this for sensitivity analysis where we exclude people who tried SGLT2 in the year before starting a DPP4/SU.
   
   later_sglt2 <- cohort %>%
     select(patid, dstartdate) %>%
@@ -375,14 +376,14 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
                                             ethnicity_5cat==1 ~"South Asian",
                                             ethnicity_5cat==2 ~"Black",
                                             ethnicity_5cat==3 ~"Other",
-                                            ethnicity_5cat==4 ~"Mixed") #,
+                                            ethnicity_5cat==4 ~"Mixed") ,
            
-           # cv_death_date_any_cause=if_else(!is.na(death_date) & !is.na(cv_death_any_cause) & cv_death_any_cause==1, death_date, as.Date(NA)),
-           # cv_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(cv_death_primary_cause) & cv_death_primary_cause==1, death_date, as.Date(NA)),
-           # kf_death_date_any_cause=if_else(!is.na(death_date) & !is.na(kf_death_any_cause) & kf_death_any_cause==1, death_date, as.Date(NA)),
-           # kf_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(kf_death_primary_cause) & kf_death_primary_cause==1, death_date, as.Date(NA)),
-           # hf_death_date_any_cause=if_else(!is.na(death_date) & !is.na(hf_death_any_cause) & hf_death_any_cause==1, death_date, as.Date(NA)),
-           # hf_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(hf_death_primary_cause) & hf_death_primary_cause==1, death_date, as.Date(NA))
+           cv_death_date_any_cause=if_else(!is.na(death_date) & !is.na(cv_death_any_cause) & cv_death_any_cause==1, death_date, as.Date(NA)),
+           cv_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(cv_death_primary_cause) & cv_death_primary_cause==1, death_date, as.Date(NA)),
+           kf_death_date_any_cause=if_else(!is.na(death_date) & !is.na(kf_death_any_cause) & kf_death_any_cause==1, death_date, as.Date(NA)),
+           kf_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(kf_death_primary_cause) & kf_death_primary_cause==1, death_date, as.Date(NA)),
+           hf_death_date_any_cause=if_else(!is.na(death_date) & !is.na(hf_death_any_cause) & hf_death_any_cause==1, death_date, as.Date(NA)),
+           hf_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(hf_death_primary_cause) & hf_death_primary_cause==1, death_date, as.Date(NA))
            )
   
   return(cohort)

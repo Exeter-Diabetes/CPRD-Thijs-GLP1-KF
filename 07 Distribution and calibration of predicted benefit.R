@@ -27,9 +27,9 @@ cohort <- cohort %>%
          `ckdpc_50egfr_survival_GLP1 + SGLT2`=ckdpc_50egfr_survival_SGLT2^trial_hr_kf_GLP1,
          `ckdpc_50egfr_GLP1 + SGLT2_benefit`=`ckdpc_50egfr_survival_GLP1 + SGLT2` - ckdpc_50egfr_survival_SGLT2,
          #create variabels for egfr and albuminuria categories
-         egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
-         egfr_cat = factor(egfr_cat),
-         # create extra variable to differentiate between reduced/preserved eGFR for plots below
+         # egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
+         # egfr_cat = factor(egfr_cat),
+         # # create extra variable to differentiate between reduced/preserved eGFR for plots below
            egfr_cat2 = ifelse(preegfr < 60, "<60", "≥60"),
            egfr_cat2 = factor(egfr_cat2),
          albuminuria_cat = ifelse(uacr >30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
@@ -48,13 +48,13 @@ cohort <- cohort %>%
 # print overall benefit per drug and by CKD category
 for (n in drug_levels[-1]) {
   
-  predicted_benefit_variable = paste0("ckdpc_50egfr_", n, "_benefit")
+  predicted_benefit_var = paste0("ckdpc_50egfr_", n, "_benefit")
   
-  print(paste0("Overall median pARR for ", n, ": ", sprintf("%.2f", median(cohort[[predicted_benefit_variable]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[[predicted_benefit_variable]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[[predicted_benefit_variable]]*100, 0.75)), ")"))
+  print(paste0("Overall median pARR for ", n, ": ", sprintf("%.2f", median(cohort[[predicted_benefit_var]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[[predicted_benefit_var]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[[predicted_benefit_var]]*100, 0.75)), ")"))
   
   for (c in levels(cohort$ckd_cat)) {
     
-    print(paste0("Median pARR for ", n, " in CKD category ", c, ": ", sprintf("%.2f", median(cohort[cohort$ckd_cat == c,][[predicted_benefit_variable]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[predicted_benefit_variable]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[predicted_benefit_variable]]*100, 0.75)), ")"))
+    print(paste0("Median pARR for ", n, " in CKD category ", c, ": ", sprintf("%.2f", median(cohort[cohort$ckd_cat == c,][[predicted_benefit_var]]*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[predicted_benefit_var]]*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$ckd_cat == c,][[predicted_benefit_var]]*100, 0.75)), ")"))
   }
 }
 
@@ -66,7 +66,7 @@ histogram_list <- list()
 
 
 for (e in levels(cohort$egfr_cat2)) {
-  
+
   max_x_value = 0
   
   proportional_heights <- table(cohort[cohort$egfr_cat2==e,]$albuminuria_cat) / sum(table(cohort[cohort$egfr_cat2==e,]$albuminuria_cat)) 
@@ -163,42 +163,42 @@ for (e in levels(cohort$egfr_cat2)) {
 }
 
 
-############################3 CALIBRATION OF PREDICTED BENEFIT################################################################
+############################3 CALIBRATION PLOTS OF PREDICTED BENEFIT################################################################
 
 
 for (n in levels(cohort[[studydrug_var]])[-1]) {
   
   benefit_calibration_plot_list <- list()
   
-  predicted_benefit_variable = paste0("ckdpc_50egfr_", n, "_benefit")
+  predicted_benefit_var = paste0("ckdpc_50egfr_", n, "_benefit")
   
   if (n == levels(cohort[[studydrug_var]])[4]) {
     reference = "SGLT2"
   } else {
-    reference = "DPP4 + SU"
+    reference = "DPP4/SU"
   }
-  counterfactual_benefit_variable = paste0("survdiff_", n, "_", reference, "_ckd_egfr50")
-  counterfactual_benefit_variable_se = paste0("se_survdiff_", n, "_", reference, "_ckd_egfr50")
+  counterfactual_benefit_var = paste0("survdiff_", n, "_", reference, "_ckd_egfr50")
+  counterfactual_benefit_var_se = paste0("se_survdiff_", n, "_", reference, "_ckd_egfr50")
   
   max_x_value = 0
   max_y_value = 0
   
   for (p in 1:length(levels(cohort$egfr_cat2))) {
-    
+
     q = levels(cohort$egfr_cat2)[p]
-    
+  
     obs_v_pred_for_plot <- cohort %>% 
       filter(egfr_cat2 == q) %>%
       # group predicted benefit by decile
-      mutate(benefit_decile = ntile(!!sym(predicted_benefit_variable), n.quantiles)) %>%
+      mutate(benefit_decile = ntile(!!sym(predicted_benefit_var), n.quantiles)) %>%
       group_by(benefit_decile) %>%
-      summarise(median_predicted_benefit=median(!!sym(predicted_benefit_variable), na.rm=T),
-                mean_predicted_benefit=mean(!!sym(predicted_benefit_variable), na.rm=T),
-                mean_benefit=mean(!!sym(counterfactual_benefit_variable)),
-                se_benefit=mean(!!sym(counterfactual_benefit_variable_se)),
-                median_benefit=median(!!sym(counterfactual_benefit_variable)),
-                lq_benefit=quantile(!!sym(counterfactual_benefit_variable), prob=c(.25)),
-                uq_benefit=quantile(!!sym(counterfactual_benefit_variable), prob=c(.75)),
+      summarise(median_predicted_benefit=median(!!sym(predicted_benefit_var), na.rm=T),
+                mean_predicted_benefit=mean(!!sym(predicted_benefit_var), na.rm=T),
+                mean_benefit=mean(!!sym(counterfactual_benefit_var)),
+                se_benefit=mean(!!sym(counterfactual_benefit_var_se)),
+                median_benefit=median(!!sym(counterfactual_benefit_var)),
+                lq_benefit=quantile(!!sym(counterfactual_benefit_var), prob=c(.25)),
+                uq_benefit=quantile(!!sym(counterfactual_benefit_var), prob=c(.75)),
                 upper_ci=mean_benefit + 1.96*se_benefit,
                 lower_ci=mean_benefit - 1.96*se_benefit,
                 group = n)
@@ -243,8 +243,8 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
     }
   
   # wrap calibration plot for reduced and preserved eGFR together side by side
-  combined_calibration_plot <- wrap_plots(benefit_calibration_plot_list, ncol = nlevels(cohort$egfr_cat2)) 
-  
+  combined_calibration_plot <- wrap_plots(benefit_calibration_plot_list, ncol = nlevels(cohort$egfr_cat2))
+
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   tiff(paste0(today, "_predicted_benefit_calibration_", n, ".tiff"), width=18, height=5.5, units = "in", res=800) 
   print(combined_calibration_plot)
@@ -261,9 +261,9 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
   
   print(paste0("Calibration slope for ", n, " benefit"))
   
-  contrast_drug = ifelse(n == "GLP1 + SGLT2", "SGLT2", "DPP4 + SU")
-  survdiff_var = paste0("`survdiff_", n, "_", contrast_drug, "_ckd_egfr50`")
-  benefit_var = paste0("`ckdpc_50egfr_", n, "_benefit`")
+  contrast_drug = ifelse(n == "GLP1 + SGLT2", "SGLT2", "DPP4/SU")
+  counterfactual_benefit_var = paste0("`survdiff_", n, "_", contrast_drug, "_ckd_egfr50`")
+  predicted_benefit_var = paste0("`ckdpc_50egfr_", n, "_benefit`")
   
   # calculate calibration slope and Brier score
   slope <- slope_se <- brier <- brier_se <- rep(NA, n.imp)
@@ -274,7 +274,7 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
     data <- cohort %>% filter(.imp == i)
     
     # calculate calibration slope
-    x <- lm(as.formula(paste0(survdiff_var, " ~ ", benefit_var)), data = data)
+    x <- lm(as.formula(paste0(counterfactual_benefit_var, " ~ ", predicted_benefit_var)), data = data)
     slope[i] <- coef(x)[2]
     slope_se[i] <- vcov(x)[2,2]
     rm(x)
@@ -288,7 +288,7 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
       # Compute squared errors
       bootstrap_sample <- bootstrap_sample %>%
         mutate(
-          squared_error = (eval(str2lang(benefit_var)) - eval(str2lang(survdiff_var)))^2,
+          squared_error = (eval(str2lang(predicted_benefit_var)) - eval(str2lang(counterfactual_benefit_var)))^2,
           weighted_error = eval(str2lang(weights_overlap)) * squared_error
         )
       

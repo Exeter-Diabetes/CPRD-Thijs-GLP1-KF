@@ -49,6 +49,9 @@ save(cohort, file=paste0(today, "_t2d_glp1_data_centred_predictors.Rda"))
 # clear R memory to ensure memory limit not exceeded
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "main")))
 
+# variable oha is constant (everyone is on oral antihyperglycaemic treatment), remove as matrix is singular when estimating survival probabilities
+covariates <- covariates[covariates != "oha"]
+
 # if evaluating other risk scores, other relevant outcomes may be added
 outcomes_per_drugclass <- "ckd_egfr50"
 
@@ -78,6 +81,7 @@ for (k in outcomes_per_drugclass) {
     for (n in 1:length(drug_levels)) { 
       
       drug_name <- drug_levels[n]
+      drug_name1 <- gsub("/", "_", drug_name) # remove any dash for file name
       
       observed_data_name <- paste0("observed_", drug_name)
       estimate_name <- paste0("estimate_", drug_name)
@@ -111,7 +115,7 @@ for (k in outcomes_per_drugclass) {
       
       setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
       # save results
-      save(observed_data, file=paste0(today, "_adjusted_surv_", k,"_", drug_name,"_imp.", i, ".Rda"))
+      save(observed_data, file=paste0(today, "_adjusted_surv_", k,"_", drug_name1,"_imp.", i, ".Rda"))
       
       rm(obs_data)
       rm(observed)
@@ -127,6 +131,7 @@ for (k in outcomes_per_drugclass) {
   for (n in 1:length(drug_levels)) { 
     
     drug_name <- drug_levels[n]
+    drug_name1 <- gsub("/", "_", drug_name)
     
     observed_data_name <- paste0("observed_", drug_name)
     
@@ -136,7 +141,7 @@ for (k in outcomes_per_drugclass) {
     # join estimates from each imputation in one dataframe
     for (i in 1:n.imp) {
       setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-      load(paste0(today, "_adjusted_surv_", k,"_", drug_name, "_imp.", i, ".Rda"))
+      load(paste0(today, "_adjusted_surv_", k,"_", drug_name1, "_imp.", i, ".Rda"))
       
       # observed_data <- get(observed_data_name)
       

@@ -28,16 +28,16 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/scripts/CPRD-Thi
 source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
-# "Number of subjects on GIPGLP1: 413 (not included due to small numbers)"
-# "Number of subjects of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: 524510"
-# "Number of drug episodes of starting an GLP1 + SGLT2 or comparator drugs DPP4 + SU between 2014-2024: 1251436"
-# "Number of drug episodes excluded with established CVD: 307965"
-# "Number of drug episodes excluded with established HF: 35635"
-# "Number of drug episodes excluded with unknown CKD status: 142544"
-# "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 2591"
-# "Number of drug episodes removed (e.g. subsequent episode of starting DPP4 + SU after episode of SGLT2 or GLP1): 34195"
-# "Number of subjects included: 297069"
-# "Number of drug episodes included: 728528"
+# [1] "Number of subjects on GIPGLP1: 184 (not included due to small numbers)"
+# [1] "Number of subjects of starting an GLP1 + SGLT2 or comparator drugs DPP4/SU between 2014-2023: 379391"
+# [1] "Number of drug episodes of starting an GLP1 + SGLT2 or comparator drugs DPP4/SU between 2014-2023: 568944"
+# [1] "Number of drug episodes excluded with established CVD: 163791"
+# [1] "Number of drug episodes excluded with established HF: 13613"
+# [1] "Number of drug episodes excluded with unknown CKD status: 92700"
+# [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 1125"
+# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after episode of SGLT2 or GLP1): 14172"
+# [1] "Number of subjects included: 203132"
+# [1] "Number of drug episodes included: 283553"
 
 table(cohort$studydrug1)
 
@@ -50,7 +50,7 @@ source("survival_variables_kf.R")
 
 cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
 
-rm(list=setdiff(ls(), c("cohort", "today", "vars", "factors", "nonnormal")))
+rm(list=setdiff(ls(), c("cohort", "today", "vars", "factors", "nonnormal", "main")))
 
 # create acr variable for ckdpc risk scores that uses further source of acr if acr not available
 cohort <- cohort %>% 
@@ -64,9 +64,10 @@ cohort <- cohort %>%
          BB=!is.na(predrug_latest_beta_blockers),
          finerenone=!is.na(predrug_latest_finerenone),
          CCB=!is.na(predrug_latest_ca_channel_blockers),
-         # ThZD=!is.na(predrug_latest_thiazide_diuretics),
-         # loopD=!is.na(predrug_latest_loop_diuretics),
-         # MRA=!is.na(predrug_latest_ksparing_diuretics),
+         ThZD=!is.na(predrug_latest_thiazide_diuretics),
+         loopD=!is.na(predrug_latest_loop_diuretics),
+         MRA=!is.na(predrug_latest_ksparing_diuretics),
+         predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0),
          # steroids=!is.na(predrug_latest_oralsteroids),
          # immunosuppr=!is.na(predrug_latest_immunosuppressants),
          # osteoporosis=!is.na(predrug_latest_osteoporosis),
@@ -79,30 +80,33 @@ cohort <- cohort %>%
   #take hba1c within window of 2 years prior and 7 days post, similar as other biomarkers
   mutate(prehba1c = prehba1c2yrs) %>%
   select(patid, malesex, ethnicity_5cat, ethnicity_qrisk2, 
-         # imd2015_10,  tds_2011,
+         imd_decile, tds_2011,
          regstartdate, 
-         # gp_end_date, death_date, 
+         gp_end_date, death_date, 
          gp_end_date,
          drug_class, contains("studydrug"), dstartdate, dstopdate_class, drugline_all, drug_substance, ncurrtx, DPP4, GLP1, 
          MFN, SGLT2, SU, TZD, INS, dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
          prehdl, preldl, pretriglyceride, pretotalcholesterol, prealt, presbp, predbp, preegfr, preckdstage, 
          preacr, uacr, 
-         # qrisk2_smoking_cat, 
+         qrisk2_smoking_cat, 
          contains("cens"), last_sglt2_stop, last_glp1_stop, oha,
          ##add variables necessary to calculate qrisk2/qhdf and ckdpc scores
          predrug_fh_premature_cvd, predrug_af, predrug_rheumatoidarthritis,
          predrug_angina, predrug_myocardialinfarction, predrug_stroke, predrug_revasc,
+         predrug_heartfailure, predrug_cvd,
          predrug_heartfailure, predrug_hypertension, 
          # predrug_acutepancreatitis,
          predrug_earliest_ace_inhibitors, predrug_earliest_arb,
          predrug_earliest_beta_blockers, predrug_latest_ace_inhibitors, 
          predrug_latest_arb, predrug_latest_beta_blockers, 
          predrug_earliest_ca_channel_blockers, predrug_latest_ca_channel_blockers, 
-         #predrug_earliest_thiazide_diuretics, predrug_latest_thiazide_diuretics,
+         predrug_earliest_thiazide_diuretics, predrug_latest_thiazide_diuretics,
+         predrug_rheumatoidarthritis, predrug_fh_premature_cvd, 
          # predrug_dka, predrug_falls, predrug_dementia, 
-         # hosp_admission_prev_year,
+         hosp_admission_prev_year,
          statin, ACEi, ARB, BB, finerenone, CCB, 
-         # ThZD, loopD, MRA, steroids, immunosuppr, 
+         ThZD, loopD, MRA, 
+         # steroids, immunosuppr, 
          # osteoporosis, genital_infection,
          ckd_egfr50_outcome_type, preacr_confirmed, preacr_previous, preacr_previous_date, preacr_next, preacr_next_date
   )
@@ -117,6 +121,17 @@ cohort$studydrug1 <- relevel(as.factor(cohort$studydrug1), ref = "SU")
 # create variable for year of treatment initiation
 cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
 
+cohort$initiation_year <- as.numeric(cohort$initiation_year)
+
+# Set start_year to the minimum year in the data
+start_year <- min(cohort$initiation_year)
+
+# Create a new variable that groups the years into two-year periods
+cohort$initiation_year <- paste0(
+  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year, "/", 
+  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year + 1
+)
+
 # ethnicity cannot be calculated in the imputation model due to it being a constant variable
 # for the sake of imputation, we will class missing as a separate category "missing" (5-cat ethnicity: 5; QRISK2: 10)
 cohort <- cohort %>%
@@ -127,15 +142,15 @@ cohort <- cohort %>%
                                labels = c("White", "South Asian", "Black", "Other", "Mixed", "Not stated/Unknown"))) %>% 
   relocate(ethnicity_5cat, .after = last_col())
 
-# # imd_2015 is not a continuous variable - we will categorise this as quantiles
-# cohort <- cohort %>% mutate(
-#   imd2015_10 = ifelse(imd2015_10 %in% c(1,2), "1/2",
-#                       ifelse(imd2015_10 %in% c(3,4), "3/4",
-#                              ifelse(imd2015_10 %in% c(5,6), "5/6",
-#                                     ifelse(imd2015_10 %in% c(7,8), "7/8",
-#                                            ifelse(imd2015_10 %in% c(9,10), "9/10", NA))))),
-#   imd2015_10 = factor(imd2015_10)
-# )
+# imd_decile is not a continuous variable - we will categorise this as quintiles
+cohort <- cohort %>% mutate(
+  imd_decile = ifelse(imd_decile %in% c(1,2), "1/2",
+                      ifelse(imd_decile %in% c(3,4), "3/4",
+                             ifelse(imd_decile %in% c(5,6), "5/6",
+                                    ifelse(imd_decile %in% c(7,8), "7/8",
+                                           ifelse(imd_decile %in% c(9,10), "9/10", NA))))),
+  imd_decile = factor(imd_decile)
+)
 
 # variable preacr_confirmed indicates whether a person had their presence of albuminuria (3mg/mmol) confirmed on 2 readings
 # this shows as NA if no second reading available to confirm - replace with NA
@@ -159,7 +174,7 @@ cohort <- cohort %>% filter(!is.na(ncurrtx))
 meth <- ini$meth
 
 meth[c(
-  # "death_date", 
+  "death_date", 
   "preacr", "last_sglt2_stop", "last_glp1_stop", "preckdstage", 
   "dstopdate_class",
   "predrug_earliest_ace_inhibitors", 
@@ -169,12 +184,12 @@ meth[c(
        "predrug_latest_arb",
        "predrug_latest_beta_blockers", "predrug_latest_ca_channel_blockers",
        "ethnicity_qrisk2", 
-       # "predrug_earliest_thiazide_diuretics", "predrug_latest_thiazide_diuretics",
+       "predrug_earliest_thiazide_diuretics", "predrug_latest_thiazide_diuretics",
        "ckd_egfr50_outcome_type", "preacr_confirmed", 
        "preacr_previous", "preacr_previous_date", "preacr_next", "preacr_next_date")] <- ""
 
 # # smoking status and deprivation missing at present
-# meth[c("qrisk2_smoking_cat", "imd2015_10")] <- "polyreg"
+# meth[c("qrisk2_smoking_cat", "imd_decile")] <- "polyreg"
 
 meth[c("preweight", "height")] <- "pmm"
 
@@ -183,13 +198,13 @@ meth["prebmi"] <- "~ I( preweight / (height/100)^2)"
 # use quickpred function to build predictor matrix
 # we can specify which variables to definitely include (inlist) and which ones to leave out (outlist)
 
-inlist <- c("malesex", "studydrug1",  "dstartdate_age",                # main sociodemographic factors
-            # "imd2015_10",                                           # treatment variable
+inlist <- c("malesex",  "dstartdate_age",  "imd_decile",  "tds_2011",            # main sociodemographic factors
+            paste0("studydrug", main),                                           # treatment variable
             "dstartdate_dm_dur_all", "prebmi", "pretotalcholesterol", # laboratory and vital sign measurements
             "presbp", "preegfr", "uacr", 
-            # "qrisk2_smoking_cat", 
-            "ckd_egfr50_censvar"
-            #"death_censvar"     # outcome variables
+            "qrisk2_smoking_cat", 
+            "ckd_egfr50_censvar",
+            "death_censvar"     # outcome variables
 )
 
 
@@ -244,7 +259,7 @@ imp <- mice(data = cohort,
             seed = 123)
 
 # check imputed vs original values (disabled as time-consuming)
-#densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
+#densityplot(x = imp, data = ~ imd_decile + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
 #              prehdl + preldl + pretriglyceride + pretotalcholesterol + prealt + presbp + predbp + preegfr + 
 #              uacr + qrisk2_smoking_cat + tds_2011)
 
@@ -277,9 +292,9 @@ temp <- temp %>%
          
          cvd=predrug_myocardialinfarction==1 | predrug_revasc==1 | predrug_heartfailure==1 | predrug_stroke==1,
          
-         # ever_smoker=ifelse(!qrisk2_smoking_cat == 0, 1L, 0L),
-         # current_smoker=ifelse(qrisk2_smoking_cat==2 | qrisk2_smoking_cat == 3 | qrisk2_smoking_cat == 4, 1L, 0L),
-         # ex_smoker=ifelse(qrisk2_smoking_cat==1, 1L, 0L),
+         ever_smoker=ifelse(!qrisk2_smoking_cat == 0, 1L, 0L),
+         current_smoker=ifelse(qrisk2_smoking_cat==2 | qrisk2_smoking_cat == 3 | qrisk2_smoking_cat == 4, 1L, 0L),
+         ex_smoker=ifelse(qrisk2_smoking_cat==1, 1L, 0L),
          current_smoker = 0L,
          ex_smoker=0L,
          
@@ -288,7 +303,7 @@ temp <- temp %>%
            ifelse(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
            ifelse(is.na(predrug_latest_beta_blockers),as.Date("1900-01-01"),predrug_latest_beta_blockers),
            ifelse(is.na(predrug_latest_ca_channel_blockers),as.Date("1900-01-01"),predrug_latest_ca_channel_blockers),
-  #         ifelse(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
+           ifelse(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
            na.rm=TRUE
          ) %>% as.Date(),
          
@@ -300,27 +315,16 @@ temp <- temp %>%
          
          )
 
+
+
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/Functions/")
 source("calculate_ckdpc_50egfr_risk.R")
 
 temp <- temp %>% 
   
   mutate(sex=ifelse(malesex == T, "male", ifelse(malesex==F, "female", NA))) %>%
-  # calculate_ckdpc_50egfr_risk(age=dstartdate_age, 
-  #                             sex=sex, 
-  #                             egfr=preegfr, 
-  #                             acr=uacr, 
-  #                             sbp=presbp, 
-  #                             bp_meds=bp_meds_ckdpc, 
-  #                             hf=predrug_heartfailure, 
-  #                             chd=chd, 
-  #                             af=predrug_af, 
-  #                             current_smoker=current_smoker, 
-  #                             ex_smoker=ex_smoker, 
-  #                             bmi=prebmi, 
-  #                             hba1c=prehba1c, 
-  #                             oha=oha, 
-  #                             insulin=INS) 
+
   calculate_ckdpc_50egfr_risk(age=dstartdate_age, 
                               sex=sex, 
                               egfr=preegfr, 
@@ -354,14 +358,61 @@ q2 <- q %>% nrow()
 print(paste0("Number of drug episodes excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q2/n.imp))
 
 
-# retain those with available risk scores only
+# retain those with available CKD risk scores only
 temp <- temp %>% filter(!is.na(ckdpc_50egfr_score))
+
+
+# add qrisk2 score
+
+temp <- temp %>% mutate(ethnicity_qrisk2 = ifelse(ethnicity_qrisk2 == "10", "9", ethnicity_qrisk2),
+                        precholhdl=pretotalcholesterol/prehdl,
+                        ckd45=ifelse(is.na(preckdstage), ifelse(preegfr < 30, T, F), 
+                                     ifelse(preckdstage == "stage_4" | preckdstage == "stage_5", T, F)),
+                        cvd=predrug_myocardialinfarction==1 | predrug_angina==1 | predrug_stroke==1,
+                        sex=ifelse(malesex==1, "male", "female"),
+                        dm_duration_cat=ifelse(dstartdate_dm_dur_all<=1, 0L,
+                                               ifelse(dstartdate_dm_dur_all<4, 1L,
+                                                      ifelse(dstartdate_dm_dur_all<7, 2L,
+                                                             ifelse(dstartdate_dm_dur_all<11, 3L, 4L)))),
+                        
+                        earliest_bp_med=pmin(
+                          if_else(is.na(predrug_earliest_ace_inhibitors),as.Date("2050-01-01"),predrug_earliest_ace_inhibitors),
+                          if_else(is.na(predrug_earliest_arb),as.Date("2050-01-01"),predrug_earliest_arb),
+                          if_else(is.na(predrug_earliest_beta_blockers),as.Date("2050-01-01"),predrug_earliest_beta_blockers),
+                          if_else(is.na(predrug_earliest_ca_channel_blockers),as.Date("2050-01-01"),predrug_earliest_ca_channel_blockers),
+                          if_else(is.na(predrug_earliest_thiazide_diuretics),as.Date("2050-01-01"),predrug_earliest_thiazide_diuretics),
+                          na.rm=TRUE
+                        ),
+                        latest_bp_med=pmax(
+                          if_else(is.na(predrug_latest_ace_inhibitors),as.Date("1900-01-01"),predrug_latest_ace_inhibitors),
+                          if_else(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
+                          if_else(is.na(predrug_latest_beta_blockers),as.Date("1900-01-01"),predrug_latest_beta_blockers),
+                          if_else(is.na(predrug_latest_ca_channel_blockers),as.Date("1900-01-01"),predrug_latest_ca_channel_blockers),
+                          if_else(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
+                          na.rm=TRUE
+                        ),
+                        bp_meds_qrisk2=ifelse(earliest_bp_med!=as.Date("2050-01-01") & latest_bp_med!=as.Date("1900-01-01") & difftime(dstartdate, latest_bp_med, units="days")<=28 & earliest_bp_med!=latest_bp_med, 1L, 0L),
+                        
+                        type1=0L,
+                        type2=1L,
+                        surv_5yr=5L)
+
+# calculate qrisk score
+
+temp <- temp %>%
+  
+  mutate(sex2=ifelse(sex=="male", "male", ifelse(sex=="female", "female", NA))) %>%
+  
+  calculate_qrisk2(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2, smoking=qrisk2_smoking_cat, type1=type1, type2=type2, fh_cvd=predrug_fh_premature_cvd, renal=ckd45, af=predrug_af, rheumatoid_arth=predrug_rheumatoidarthritis, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, bp_med=bp_meds_qrisk2, town=tds_2011, surv=surv_5yr) %>%
+  
+  rename(qrisk2_score_5yr=qrisk2_score) 
+
 
 
 temp <- temp %>% mutate(
   obesity = ifelse(prebmi < 30, F, T),
-#  smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
-#  smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
+  smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
+  smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
   albuminuria_unconfirmed = ifelse(uacr < 3, F, T),
   albuminuria = preacr_confirmed,        # 
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
@@ -398,7 +449,7 @@ for (m in 1:n.studydrug.vars) {
   studydrug_var = paste0("studydrug", m)
   
   table <- CreateTableOne(vars = vars, strata = studydrug_var, data = temp %>% filter(!.imp == 0) %>%  
-                            {if (m != 2) filter(., !!sym(studydrug_var) != "GLP1 + SGLT2") else .} %>%
+                            {if (m != main) filter(., !!sym(studydrug_var) != "GLP1 + SGLT2") else .} %>%
                             group_by(.imp, patid) %>% filter(!duplicated(!!sym(studydrug_var))) %>% ungroup(),  
                           factorVars = factors, test = F)
   
