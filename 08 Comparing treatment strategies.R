@@ -10,6 +10,10 @@ weights_overlap = paste0("overlap", main)
 
 ############################1 COMPARE pARR TO EGFR/ALBUMINURIA CRITERIA################################################################
  
+# calculate predicted SGLT2 benefit (absolute risk reduction = ARR):
+# pARR = S0(t)^HR - S0(t)
+trial_hr_kf_SGLT2 <- 0.62
+trial_hr_kf_GLP1 <- 0.81
 
 cohort <- cohort %>% 
   mutate(ckdpc_50egfr_survival=(100-ckdpc_50egfr_score)/100,
