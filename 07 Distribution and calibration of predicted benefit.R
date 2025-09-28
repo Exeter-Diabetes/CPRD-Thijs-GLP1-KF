@@ -244,3 +244,15 @@ for (n in levels(cohort[[studydrug_var]])[-1]) {
   print(paste0("Brier score for pARR  (", n, ")", mean(brier), ", 95% CI ", mean(brier)-1.96*brier_se_pooled, "-", mean(brier)+1.96*brier_se_pooled))
   
 }
+
+
+model_metrics <- data.frame(
+  model = "Benefit model",
+  calibration_slope = round(slope_mean, 4),
+  calibration_slope_ci = paste0(round(slope_lc, 4), "-", round(slope_uc, 4)),
+  brier_score = mean(brier),
+  brier_score_ci = paste0(mean(brier)-1.96*brier_se_pooled, "-", mean(brier)+1.96*brier_se_pooled)
+)
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+write.csv2(model_metrics, file=paste0(today, "_benefit_model_performance.csv"))
