@@ -10,6 +10,8 @@ load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda")
 # number of studydrug variables
 n.studydrug.vars <- sum(grepl("studydrug", colnames(cohort)))
 rm(cohort)
+
+main = 2
 ############################1 HAZARD RATIOS OVERALL################################################################
 
 # create empty data frame to which we can append the hazard ratios once calculated
@@ -23,9 +25,8 @@ gc()
 # calculate hazard ratios
 
 # for every studydrug variable:
-# for (m in 1:n.studydrug.vars) {
-for (m in c(2,4)) {
-  
+for (m in 1:n.studydrug.vars) {
+    
   print(paste0("Loading data for variable studydrug", m, collapse = ""))
   
   # define studydrug variable and weights variables to be used
@@ -51,23 +52,14 @@ for (m in c(2,4)) {
   
   
   # calculate hazard ratios per outcome
-  for (k in outcomes_per_drugclass) {
+  for (k in outcomes) {
     
-    if (k != "ckd_egfr50" & m != main & m != n.studydrug.vars) {next} else {
-      if (m != main & m != n.studydrug.vars) {
-        
-        # studydrug1 is meant to check validity of taking DPP4/SU as one group and studydrug 3 the difference between different GLP1 types
-        # therefore we will use censoring variables _sens1/_sens3 which will censor observations if switching between those
-        censvar_var=paste0(k, "_sens", m, "_censvar")
-        censtime_var=paste0(k, "_sens", m, "_censtime_yrs")
-        
-      } else {
-        
+
         # for other studydrug variables use regular censoring variables
         censvar_var=paste0(k, "_censvar")
         censtime_var=paste0(k, "_censtime_yrs")
         
-      } 
+
       
       print(paste0("Calculating event numbers per drug level for outcome ", k))
       
@@ -219,163 +211,9 @@ for (m in c(2,4)) {
         
       }
       
-      
-      # test GLP1 + SGLT2 interaction
-      if (m == main) {
-        
-        print(paste0("Testing ", drug_levels[length(drug_levels)], " interaction"))
-        # define interaction term for formula
-        interaction_term <- gsub(" \\+ ", "*", drug_levels[length(drug_levels)])
-        f_interaction2 = as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  ", interaction_term, " + ", paste(covariates, collapse=" + "), collapse = ""))
-        
-        for (n in drug_levels[-1]) {
-          for (c in c("COEFS", "SE")) {
-            for (d in c("adj", "ow", "iptw")) {
-              assign(paste0(c, ".interaction.", n, ".", d), rep(NA, n.imp))
-              
-            }
-          }
-        }
-        
-        # for p value
-        for (c in c("COEFS", "SE")) {
-          for (d in c("adj", "ow", "iptw")) {
-            assign(paste0(c, ".interaction.term.only.", d), rep(NA, n.imp))
-            
-          }
-        }
-        
-        for (i in 1:n.imp) {
-          print(paste0("Analyses in imputed dataset number ", i))
-          #adjusted analyses
-          fit.adj <- coxph(f_interaction2, cohort[cohort$.imp == i,])      
-          #overlap weighted analyses
-          fit.ow <- coxph(f_interaction2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
-          #inverse probability of treatment weighted analyses
-          fit.iptw <- coxph(f_interaction2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
-          
-          for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
-            
-            drug_name <- drug_levels[n+1]
-            
-            # for every analysis approach, extract coefficients
-            for (d in c("adj", "ow", "iptw")) {
-              
-              # get model for this analysis approach
-              model <- get(paste0("fit.", d))
-              
-              if (drug_name != drug_levels[length(drug_levels)]) {               
-                # Identify the position of the drug coefficietn
-                matching_index <- match(drug_name, names(model$coefficients))
-                
-                # coef_vector[i] <- model$coefficients[n]
-                coef_statement <- paste0("`COEFS.interaction.", drug_name, ".", d, "`[", i, "] <- model$coefficients[", matching_index, "]", collapse = "")
-                # se_vector[i] <- sqrt(model$var[n,n])
-                se_statement <- paste0("`SE.interaction.", drug_name, ".", d, "`[", i, "] <- sqrt(model$var[", matching_index, ",", matching_index, "])", collapse = "")
-                
-              } else {
-                # write commands as strings that will dynamically extract coefficient variables for this analysis approach + drug level:
-                
-                # coef_vector[i] <- model$coefficients[1] + model$coefficients[2] + model$coefficients[length(model$coefficients)]
-                coef_statement <- paste0("`COEFS.interaction.", drug_name, ".", d, "`[", i, "] <- model$coefficients[1] + model$coefficients[2] + model$coefficients[length(model$coefficients)]", collapse = "")
-                # se_vector[i] <- sqrt(abs(model$var[1,1] + model$var[2,2] + model$var[nrow,nrow] + 2*model$var[1,2] + 2*model$var[1,length(model$coefficients)] + 2*model$var[2,length(model$coefficients)]))
-                se_statement <- paste0("`SE.interaction.", drug_name, ".", d, "`[", i, "] <- sqrt(abs(model$var[1,1] + model$var[2,2] + model$var[length(model$coefficients), length(model$coefficients)] + 2*(model$var[1,2] + model$var[1,length(model$coefficients)] + model$var[2,length(model$coefficients)])))", collapse = "")
-                
-                # for interaction term itself only
-                coef_statement2 <- paste0("`COEFS.interaction.term.only.", d, "`[", i, "] <- model$coefficients[length(model$coefficients)]", collapse = "")
-                se_statement2 <- paste0("`SE.interaction.term.only.", d, "`[", i, "] <- sqrt(abs(model$var[length(model$coefficients), length(model$coefficients)]))", collapse = "")
-                
-                eval(str2lang(coef_statement2))
-                eval(str2lang(se_statement2))
-                
-              }
-              
-              # execute commands
-              eval(str2lang(coef_statement))
-              eval(str2lang(se_statement))
-              
-              rm(model)
-            }
-          }
-        }
-        
-        ## loop to pool and store results
-        for (n in 1:length(drug_levels)) {
-          
-          # get drug name
-          drug_name <- drug_levels[n]
-          
-          
-          for (d in c("adj", "ow", "iptw")) {
-            if (n == 1) {
-              # if drug level is SU (reference category) then HR will be NA
-              pooled_hr <- c(NA, NA, NA)
-              pooled_hr_string <- NA
-              
-            } else {
-              
-              # define names for objects containing pooled hr + 95% ci (as vector and as string)
-              pooled_hr_name <- paste0(d, "_", drug_name, "_hr")
-              pooled_hr_string_name <- paste0(d, "_", drug_name, "_string")
-              
-              # define names for coefficient vectors
-              coef_name <- paste0("COEFS.interaction.", drug_name, ".", d)
-              se_name <- paste0("SE.interaction.", drug_name, ".", d)
-              
-              coef_vector <- get(coef_name)
-              se_vector <- get(se_name)
-              
-              # assign appropriate name to pooled hr + 95% ci (as vector)
-              assign(pooled_hr_name, pool.rubin.HR(coef_vector, se_vector, n.imp))
-              # get dynamic handle to object
-              pooled_hr <- get(pooled_hr_name)
-              
-              # assign appropriate name to pooled hr + 95% ci (as string)
-              assign(pooled_hr_string_name, paste0(sprintf("%.2f", round(pooled_hr[1], 2)), " (", sprintf("%.2f", round(pooled_hr[2], 2)), ", ", sprintf("%.2f", round(pooled_hr[3], 2)), ")"))
-              # get dynamic handle to object
-              pooled_hr_string <- get(pooled_hr_string_name)
-              
-              if (n == length(drug_levels)) {
-                # Pool the standard errors using Rubin's rules
-                coef_name <- paste0("COEFS.interaction.term.only.", d)
-                se_name <- paste0("SE.interaction.term.only.", d)
-                
-                coef_vector <- get(coef_name)
-                se_vector <- get(se_name)
-                # Calculate the Wald statistic
-                wald_stat <- mean(coef_vector) / sqrt(mean(se_vector^2) + var(coef_vector) / n.imp)
-                
-                # Calculate the p-value from the Wald statistic (using normal approximation)
-                p_value_interaction <- 2 * (1 - pnorm(abs(wald_stat)))
-                print(paste0("P value for GLP1:SGLT2 interaction (", d, "): ", p_value_interaction))
-              }
-            }
-            
-            # create dataframe containing events, follow-up etc
-            outcome_hr <- data.frame(outcome = k, 
-                                     count = as.numeric(count[n]),
-                                     followup = as.numeric(followup[n]), 
-                                     events = as.character(events[n]),
-                                     contrast = paste0(drug_name, " vs ", drug_levels[1], collapse = ""),
-                                     variable = paste0("interaction_studydrug", m, collapse = ""),
-                                     analysis = d,
-                                     HR = pooled_hr[1],
-                                     LB = pooled_hr[2],
-                                     UB = pooled_hr[3],
-                                     string = pooled_hr_string)
-            
-            # combine results by each analysis approach within each drug type (within studydrug variable)
-            hrs <- rbind(hrs, outcome_hr)
-            
-            
-          }
-          
-        }
-      }
-      
     }    
     
-  }
+
 }
 
 # ensure hazard ratio and 95% ci are stored as numeric variables
@@ -386,7 +224,7 @@ hrs <- hrs %>%
   separate(`events`, into = c("events_number", "events_percentage"), sep = " \\(", remove = FALSE) %>%
      mutate(
        `events_percentage` = str_replace(`events_percentage`, "\\)", ""),
-       `nN` = paste0(`events_number`, "/", `count`),
+       `nN` = paste0("  ", format(as.numeric(`events_number`), big.mark = ",", scientific = F), " / ", format(`count`, big.mark = ",", scientific = F)),
      )
 
 # store hazard ratios
@@ -394,268 +232,12 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/"
 save(hrs, file=paste0(today, "_hrs.Rda"))
 
 
-# ############################2 HAZARD RATIOS BY EGFR CATEGORY################################################################
-# 
-# # create empty data frame to which we can append the hazard ratios once calculated
-# egfr_hrs <- data.frame()
-# 
-# # main dataset is large - for speed of computation we will only load in dataset we need each time
-# rm(cohort)
-# gc()
-# 
-# 
-# # calculate hazard ratios
-# 
-# # define studydrug variable and weights variables to be used
-# studydrug_var = paste0("studydrug", main)
-# weights_overlap = paste0("overlap", main)
-# weights_iptw = paste0("IPTW", main)
-# 
-# # reload data
-# setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-# load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
-# gc()
-# 
-# cohort <- cohort %>% mutate(across(starts_with("studydrug"), as.factor))
-# 
-# # define which drugs are evaluated with current studydrug variable
-# drug_levels <- levels(cohort[[studydrug_var]])
-# 
-# 
-# # remove double overlapping entries (take one only)
-# cohort <- cohort %>% 
-#   group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-#   arrange(dstartdate) %>% 
-#   filter(!duplicated(!!sym(studydrug_var))) %>% 
-#   ungroup()
-# 
-# # create variable for eGFR category
-# cohort <- cohort %>% mutate(
-#   egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
-#   egfr_cat = factor(egfr_cat)
-# )
-# 
-# p_value_interaction_egfr <- rep(NA, n.imp)
-# 
-# # calculate hazard ratios per outcome
-# for (k in outcomes_per_drugclass) {
-#   print(paste0("eGFR categories"))
-#   print(paste0("Calculating event numbers per drug level for outcome ", k))
-#   
-#   
-#   
-#   # for other studydrug variables use regular censoring variables
-#   censvar_var=paste0(k, "_censvar")
-#   censtime_var=paste0(k, "_censtime_yrs")
-#   
-#   
-#   # calculate number of subjects in each group
-#   count <- cohort[cohort$.imp != 0,] %>%
-#     group_by(!!sym(studydrug_var), egfr_cat) %>%
-#     summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
-#     pivot_wider(names_from=!!sym(studydrug_var),
-#                 names_glue=paste0("{studydrug", main, "}_count"),
-#                 values_from=count)
-#   
-#   # calculate median follow up time (years) per group
-#   followup <- cohort[cohort$.imp != 0,] %>%
-#     group_by(!!sym(studydrug_var), egfr_cat) %>%
-#     summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
-#     pivot_wider(names_from=!!sym(studydrug_var),
-#                 names_glue=paste0("{studydrug", main, "}_followup"),
-#                 values_from=time)
-#   
-#   # summarise number of events per group
-#   events <- cohort[cohort$.imp != 0,] %>%
-#     group_by(!!sym(studydrug_var), egfr_cat) %>%
-#     summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
-#               drug_count=round(n()/n.imp, 0)) %>%
-#     mutate(events_perc=round(event_count*100/drug_count, 1),
-#            events=paste0(event_count, " (", events_perc, "%)")) %>%
-#     select(!!sym(studydrug_var), egfr_cat, events) %>%
-#     pivot_wider(names_from=!!sym(studydrug_var),
-#                 names_glue=paste0("{studydrug", main, "}_events"),
-#                 values_from=events)
-#   
-#   
-#   # write formulas for adjusted and unadjusted analyses
-#   f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*egfr_cat", collapse = ""))
-#   
-#   f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*egfr_cat", " + ", paste(covariates, collapse=" + "), collapse = ""))
-#   
-#   # create empty vectors to store the coefficients and standard errors of the hazard ratios from every imputed dataset
-#   
-#   for (n in drug_levels[-1]) {
-#     for (c in c("COEFS", "SE")) {
-#       for (d in c("adj", "ow", "iptw")) {
-#         for (q in levels(as.factor(cohort$egfr_cat))) {
-#           assign(paste0(c, ".", n, ".", d, ".", q), rep(NA, n.imp))
-#         }
-#       }
-#     }
-#   }
-#   
-#   
-#   for (i in 1:n.imp) {
-#     print(paste0("Analyses in imputed dataset number ", i))
-#     
-#     #adjusted analyses
-#     fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])      
-#     #overlap weighted analyses
-#     fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
-#     #inverse probability of treatment weighted analyses
-#     fit.iptw <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
-#     
-#     #store coefficients and standard errors from this model
-#     for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
-#       
-#       drug_name <- drug_levels[n+1]
-#       
-#       # for every analysis approach, extract coefficients
-#       for (d in c("adj", "ow", "iptw")) {
-#         
-#         # get model for this analysis approach
-#         model <- get(paste0("fit.", d))
-#         
-#         for (p in 1:length(levels(cohort$egfr_cat))) {
-#           
-#           q = levels(as.factor(cohort$egfr_cat))[p]
-#           
-#           if (q == levels(as.factor(cohort$egfr_cat))[1]) {
-#             # coef_vector[i] <- model$coefficients[n]
-#             coef_statement <- paste0("`COEFS.", drug_name, ".", d, ".", q, "`[", i, "] <- model$coefficients[", n, "]", collapse = "")
-#             # se_vector[i] <- sqrt(model$var[n,n])
-#             se_statement <- paste0("`SE.", drug_name, ".", d, ".", q, "`[", i, "] <- sqrt(model$var[", n, ",", n, "])", collapse = "")
-#           } else {
-#             # coef = coef1 + coef2
-#             # coef_vector[i] <- model$coefficients[n] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(p-1)+n]
-#             coef_statement <- paste0("`COEFS.", drug_name, ".", d, ".", q, "`[", i, "] <- model$coefficients[", n, "] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(", p, "-1) + ", n, "]", collapse = "")
-#             
-#             # se = sqrt(var1 + var2 + cov1,2)
-#             # se_vector[i] <- sqrt(abs(model$var[n,n]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(p-1)+n,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(p-1)+n]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(p-1)+n]))
-#             se_statement <- paste0("`SE.", drug_name, ".", d, ".", q, "`[", i, "] <- sqrt(abs(model$var[", n, ",", n, "]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(", p, "-1) + ", n, ",nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(", p, "-1) + ", n, "]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$egfr_cat)[-1]))/(", p, "-1) + ", n, "]))", collapse = "")
-#           }          
-#           # execute commands
-#           eval(str2lang(coef_statement))
-#           eval(str2lang(se_statement))
-#           
-#           
-#           
-#           
-#         }
-#         
-#         rm(model)
-#       }
-#       
-#     }
-#     
-#     # save interaction significance
-#     if (k == "ckd_egfr50") {
-#       f_adjusted3 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, " + ", paste(covariates, collapse=" + "), collapse = ""))
-#       fit.ow.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,], weights = cohort[cohort$.imp == i,][[weights_overlap]])
-#       chi <- 2 * fit.ow$loglik[2] - 2 * fit.ow.no_interaction$loglik[2]
-#       p_value_interaction_egfr[i] <- 1 - pchisq(chi, df = 2)
-#     }
-#     
-#   }
-#   
-#   
-#   ## loop to pool and store results
-#   for (n in 1:length(drug_levels)) {
-#     
-#     # get drug name
-#     drug_name <- drug_levels[n]
-#     
-#     
-#     for (d in c("adj", "ow", "iptw")) {
-#       
-#       for (p in 1:length(levels(cohort$egfr_cat))) {
-#         q = levels(as.factor(cohort$egfr_cat))[p]
-#         if (n == 1) {
-#           # if drug level is reference category then HR will be NA
-#           pooled_hr <- c(1, NA, NA)
-#           pooled_hr_string <- "1.00 (ref.)"
-#           
-#         } else {
-#           
-#           # define names for objects containing pooled hr + 95% ci (as vector and as string)
-#           pooled_hr_name <- paste0(d, "_", drug_name, "_", q, "_hr")
-#           pooled_hr_string_name <- paste0(d, "_", drug_name, "_", q, "_string")
-#           
-#           # define names for coefficient vectors
-#           coef_name <- paste0("COEFS.", drug_name, ".", d, ".", q)
-#           se_name <- paste0("SE.", drug_name, ".", d, ".", q)
-#           
-#           coef_vector <- get(coef_name)
-#           se_vector <- get(se_name)
-#           
-#           # assign appropriate name to pooled hr + 95% ci (as vector)
-#           assign(pooled_hr_name, pool.rubin.HR(coef_vector, se_vector, n.imp))
-#           # get dynamic handle to object
-#           pooled_hr <- get(pooled_hr_name)
-#           
-#           # assign appropriate name to pooled hr + 95% ci (as string)
-#           assign(pooled_hr_string_name, paste0(sprintf("%.2f", round(pooled_hr[1], 2)), " (", sprintf("%.2f", round(pooled_hr[2], 2)), ", ", sprintf("%.2f", round(pooled_hr[3], 2)), ")"))
-#           # get dynamic handle to object
-#           pooled_hr_string <- get(pooled_hr_string_name)
-#           
-#           
-#         }
-#         
-#         # create dataframe containing events, follow-up etc
-#         outcome_hr <- data.frame(outcome = k, 
-#                                  egfr_cat = q,
-#                                  count = as.numeric(count %>% filter(egfr_cat==q) %>% select(paste0(drug_name, "_count"))),
-#                                  followup = as.numeric(followup %>% filter(egfr_cat==q) %>% select(paste0(drug_name, "_followup"))), 
-#                                  events = as.character(events %>% filter(egfr_cat==q) %>% select(paste0(drug_name, "_events"))),
-#                                  contrast = paste0(drug_name, " vs ", drug_levels[1], collapse = ""),
-#                                  variable = paste0("studydrug", main, collapse = ""),
-#                                  analysis = d,
-#                                  HR = pooled_hr[1],
-#                                  LB = pooled_hr[2],
-#                                  UB = pooled_hr[3],
-#                                  string = pooled_hr_string)
-#         
-#         # combine results by each analysis approach within each drug type (within studydrug variable)
-#         egfr_hrs <- rbind(egfr_hrs, outcome_hr)
-#       }
-#       
-#     }
-#     
-#   }
-#   
-# }    
-# 
-# 
-# # ensure hazard ratio and 95% ci are stored as numeric variables
-# class(egfr_hrs$HR) <- class(egfr_hrs$LB) <- class(egfr_hrs$UB) <- "numeric"
-# 
-# # create separate variables for events per number of drug initiations (nN)
-# egfr_hrs <- egfr_hrs %>% 
-#   separate(`events`, into = c("events_number", "events_percentage"), sep = " \\(", remove = FALSE) %>%
-#   mutate(
-#     `events_percentage` = str_replace(`events_percentage`, "\\)", ""),
-#     `nN` = paste0(`events_number`, "/", `count`),
-#   )
-# 
-# # store hazard ratios
-# setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-# save(egfr_hrs, file=paste0(today, "_egfr_hrs.Rda"))
+############################2 HAZARD RATIOS BY PRESENCE OF COMORBIDITIES################################################################
 
-############################3 HAZARD RATIOS BY ALBUMINURIA CATEGORY################################################################
+# consider following factors that may potentially alter effect of GLP1 on kidney protection:
+factors <- c("malesex", "white_ethnicity", "predrug_cvd", "predrug_heartfailure")
 
-# create empty data frame to which we can append the hazard ratios once calculated
-albuminuria_hrs <- data.frame()
-
-# main dataset is large - for speed of computation we will only load in dataset we need each time
-rm(cohort)
-gc()
-
-
-## calculate hazard ratios
-
-# use variable studydrug2
-m = main
+# calculate hazard ratios
 
 # define studydrug variable and weights variables to be used
 studydrug_var = paste0("studydrug", main)
@@ -667,163 +249,167 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/"
 load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
 gc()
 
-cohort <- cohort %>% mutate(across(starts_with("studydrug"), as.factor))
+cohort <- cohort %>% mutate(across(starts_with("studydrug"), as.factor),
+                            age_above_60 = ifelse(dstartdate_age >=60, T, F),
+                            white_ethnicity = ifelse(ethnicity_5cat == "White", T, F),
+                            malesex = as.logical(malesex),
+                            predrug_cvd = as.logical(predrug_cvd), 
+                            predrug_heartfailure = as.logical(predrug_heartfailure),
+                            albuminuria = as.logical(albuminuria))
+
+
 
 # define which drugs are evaluated with current studydrug variable
 drug_levels <- levels(cohort[[studydrug_var]])
 
 
 # remove double overlapping entries (take one only)
-cohort <- cohort %>% 
-  group_by(.imp, patid, !!sym(studydrug_var)) %>% 
-  arrange(dstartdate) %>% 
-  filter(!duplicated(!!sym(studydrug_var))) %>% 
+cohort <- cohort %>%
+  group_by(.imp, patid, !!sym(studydrug_var)) %>%
+  arrange(dstartdate) %>%
+  filter(!duplicated(!!sym(studydrug_var))) %>%
   ungroup()
 
-# create variable for albuminuria category
-cohort <- cohort %>% mutate(
-  albuminuria_cat = ifelse(uacr >30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
-  albuminuria_cat = factor(albuminuria_cat)
-)
 
-p_value_interaction_albuminuria <- rep(NA, n.imp)
 
-# calculate hazard ratios per outcome
-for (k in outcomes_per_drugclass) {
-  print(paste0("Albuminuria categories"))
+# create empty data frame to which we can append the hazard ratios once calculated
+factor_hrs <- data.frame()
+
+for (k in outcomes) {
   
   print(paste0("Calculating event numbers per drug level for outcome ", k))
   
-  
-  
-  # for other studydrug variables use regular censoring variables
-  censvar_var=paste0(k, "_censvar")
-  censtime_var=paste0(k, "_censtime_yrs")
-  
-  
-  # calculate number of subjects in each group
-  count <- cohort[cohort$.imp != 0,] %>%
-    group_by(!!sym(studydrug_var), albuminuria_cat) %>%
-    summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
-    pivot_wider(names_from=!!sym(studydrug_var),
-                names_glue=paste0("{studydrug", main, "}_count"),
-                values_from=count)
-  
-  # calculate median follow up time (years) per group
-  followup <- cohort[cohort$.imp != 0,] %>%
-    group_by(!!sym(studydrug_var), albuminuria_cat) %>%
-    summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
-    pivot_wider(names_from=!!sym(studydrug_var),
-                names_glue=paste0("{studydrug", main, "}_followup"),
-                values_from=time)
-  
-  # summarise number of events per group
-  events <- cohort[cohort$.imp != 0,] %>%
-    group_by(!!sym(studydrug_var), albuminuria_cat) %>%
-    summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
-              drug_count=round(n()/n.imp, 0)) %>%
-    mutate(events_perc=round(event_count*100/drug_count, 1),
-           events=paste0(event_count, " (", events_perc, "%)")) %>%
-    select(!!sym(studydrug_var), albuminuria_cat, events) %>%
-    pivot_wider(names_from=!!sym(studydrug_var),
-                names_glue=paste0("{studydrug", main, "}_events"),
-                values_from=events)
-  
-  
-  # write formulas for adjusted and unadjusted analyses
-  f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*albuminuria_cat", collapse = ""))
-  
-  f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*albuminuria_cat", " + ", paste(covariates, collapse=" + "), collapse = ""))
-  
   # create empty vectors to store the coefficients and standard errors of the hazard ratios from every imputed dataset
-  
-  for (n in drug_levels[-1]) {
+  for (n in drug_levels) {
     for (c in c("COEFS", "SE")) {
-      for (d in c("adj", "ow", "iptw")) {
-        for (q in levels(as.factor(cohort$albuminuria_cat))) {
-          assign(paste0(c, ".", n, ".", d, ".", q), rep(NA, n.imp))
+      for (l in factors) {
+        for (q in c("TRUE", "FALSE")) {
+          assign(paste0(c, ".", n, ".", l, q), rep(NA, n.imp))
         }
       }
     }
   }
   
+  # for interaction term p value
+  for (c in c("COEFS", "SE")) {
+    for (l in factors) {
+      assign(paste0(c, ".interaction.term.only.", l), rep(NA, n.imp))
+      
+    }
+  }
   
-  for (i in 1:n.imp) {
-    print(paste0("Analyses in imputed dataset number ", i))
+  # calculate hazard ratios per outcome
+  for (l in factors) {
+    d = "ow"
+    print(paste0("Analyses by ", l))
     
-    #adjusted analyses
-    fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])      
-    #overlap weighted analyses
-    fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
-    #inverse probability of treatment weighted analyses
-    fit.iptw <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
     
-    #store coefficients and standard errors from this model
-    for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
+    # for other studydrug variables use regular censoring variables
+    censvar_var=paste0(k, "_censvar")
+    censtime_var=paste0(k, "_censtime_yrs")
+    
+    
+    # calculate number of subjects in each group
+    count <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var), !!sym(l)) %>%
+      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", main, "}_count"),
+                  values_from=count)
+    
+    # calculate median follow up time (years) per group
+    followup <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var), !!sym(l)) %>%
+      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", main, "}_followup"),
+                  values_from=time)
+    
+    # summarise number of events per group
+    events <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var), !!sym(l)) %>%
+      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+                drug_count=round(n()/n.imp, 0)) %>%
+      mutate(events_perc=round(event_count*100/drug_count, 1),
+             events=paste0(event_count, " (", events_perc, "%)")) %>%
+      select(!!sym(studydrug_var), !!sym(l), events) %>%
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", main, "}_events"),
+                  values_from=events)
+    
+    
+    # write formulas for analyses with and without interaction
+    f_adjusted <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, " + ", paste(covariates, collapse=" + "), collapse = ""))
+    
+    f_adjusted_interaction <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*", l, " + ", paste(covariates, collapse=" + "), collapse = ""))
+    
+    for (i in 1:n.imp) {
+      print(paste0("Analyses in imputed dataset number ", i))
       
-      drug_name <- drug_levels[n+1]
+      # analyses without interaction
+      fit.no_interaction <- coxph(f_adjusted, cohort[cohort$.imp == i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+      # analyses with interaction
+      fit.interaction <- coxph(f_adjusted_interaction, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
-      # for every analysis approach, extract coefficients
-      for (d in c("adj", "ow", "iptw")) {
+      
+      #store coefficients and standard errors from this model
+      for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
         
-        # get model for this analysis approach
-        model <- get(paste0("fit.", d))
+        drug_name <- drug_levels[n+1]
         
-        for (p in 1:length(levels(cohort$albuminuria_cat))) {
+        for (q in c("FALSE", "TRUE")) {
           
-          q = levels(as.factor(cohort$albuminuria_cat))[p]
+          p = ifelse(q == "TRUE", 2, 1)
           
-          if (q == levels(as.factor(cohort$albuminuria_cat))[1]) {
+          model <- fit.interaction
+          
+          if (q == "FALSE") {
             # coef_vector[i] <- model$coefficients[n]
-            coef_statement <- paste0("`COEFS.", drug_name, ".", d, ".", q, "`[", i, "] <- model$coefficients[", n, "]", collapse = "")
+            coef_statement <- paste0("`COEFS.", drug_name, ".", l, q, "`[", i, "] <- model$coefficients[", n, "]", collapse = "")
             # se_vector[i] <- sqrt(model$var[n,n])
-            se_statement <- paste0("`SE.", drug_name, ".", d, ".", q, "`[", i, "] <- sqrt(model$var[", n, ",", n, "])", collapse = "")
+            se_statement <- paste0("`SE.", drug_name, ".", l, q, "`[", i, "] <- sqrt(model$var[", n, ",", n, "])", collapse = "")
           } else {
             # coef = coef1 + coef2
-            # coef_vector[i] <- model$coefficients[n] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(p-1)+n]
-            coef_statement <- paste0("`COEFS.", drug_name, ".", d, ".", q, "`[", i, "] <- model$coefficients[", n, "] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(", p, "-1) + ", n, "]", collapse = "")
+            # coef_vector[i] <- model$coefficients[n] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(p-1)+n]
+            coef_statement <- paste0("`COEFS.", drug_name, ".", l, q, "`[", i, "] <- model$coefficients[", n, "] + model$coefficients[length(model$coefficients)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(", p, "-1) + ", n, "]", collapse = "")
             
             # se = sqrt(var1 + var2 + cov1,2)
-            # se_vector[i] <- sqrt(abs(model$var[n,n]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(p-1)+n,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(p-1)+n]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(p-1)+n]))
-            se_statement <- paste0("`SE.", drug_name, ".", d, ".", q, "`[", i, "] <- sqrt(abs(model$var[", n, ",", n, "]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(", p, "-1) + ", n, ",nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(", p, "-1) + ", n, "]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(cohort$albuminuria_cat)[-1]))/(", p, "-1) + ", n, "]))", collapse = "")
-          }          
+            # se_vector[i] <- sqrt(abs(model$var[n,n]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(p-1)+n,nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(p-1)+n]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(p-1)+n]))
+            se_statement <- paste0("`SE.", drug_name, ".", l, q, "`[", i, "] <- sqrt(abs(model$var[", n, ",", n, "]) + abs(model$var[nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(", p, "-1) + ", n, ",nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(", p, "-1) + ", n, "]) + abs(2 * vcov(model)[1,nrow(model$var)-(length(drug_levels[-1])*length(levels(as.factor(cohort[[l]]))[-1]))/(", p, "-1) + ", n, "]))", collapse = "")
+          }
+          
+          # for interaction term itself only
+          coef_statement2 <- paste0("`COEFS.interaction.term.only.", l, "`[", i, "] <- model$coefficients[length(model$coefficients)]", collapse = "")
+          se_statement2 <- paste0("`SE.interaction.term.only.", l, "`[", i, "] <- sqrt(abs(model$var[length(model$coefficients), length(model$coefficients)]))", collapse = "")
+          
           # execute commands
           eval(str2lang(coef_statement))
           eval(str2lang(se_statement))
           
+          eval(str2lang(coef_statement2))
+          eval(str2lang(se_statement2))
+          
           
           
           
         }
         
-        rm(model)
       }
       
-    }
-    
-    # save interaction significance
-    if (k == "ckd_albuminuria50") {
-      f_adjusted3 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, " + ", paste(covariates, collapse=" + "), collapse = ""))
-      fit.ow.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,], weights = cohort[cohort$.imp == i,][[weights_overlap]])
-      chi <- 2 * fit.ow$loglik[2] - 2 * fit.ow.no_interaction$loglik[2]
-      p_value_interaction_albuminuria[i] <- 1 - pchisq(chi, df = 2)
-    }
-    
-  }
-  
-  
-  ## loop to pool and store results
-  for (n in 1:length(drug_levels)) {
-    
-    # get drug name
-    drug_name <- drug_levels[n]
-    
-    
-    for (d in c("adj", "ow", "iptw")) {
       
-      for (p in 1:length(levels(cohort$albuminuria_cat))) {
-        q = levels(as.factor(cohort$albuminuria_cat))[p]
-        if (n == 1) {
+    }
+    
+    
+    ## loop to pool and store results
+    for (n in 1:length(drug_levels)) {
+      
+      # get drug name
+      drug_name <- drug_levels[n]
+      
+      
+      for (q in c("FALSE", "TRUE")) {
+        
+        if (n == 1 & q == "FALSE") {
           # if drug level is reference category then HR will be NA
           pooled_hr <- c(1, NA, NA)
           pooled_hr_string <- "1.00 (ref.)"
@@ -831,12 +417,12 @@ for (k in outcomes_per_drugclass) {
         } else {
           
           # define names for objects containing pooled hr + 95% ci (as vector and as string)
-          pooled_hr_name <- paste0(d, "_", drug_name, "_", q, "_hr")
-          pooled_hr_string_name <- paste0(d, "_", drug_name, "_", q, "_string")
+          pooled_hr_name <- paste0(drug_name, "_", l, q, "_hr")
+          pooled_hr_string_name <- paste0(drug_name, "_", l, q, "_string")
           
           # define names for coefficient vectors
-          coef_name <- paste0("COEFS.", drug_name, ".", d, ".", q)
-          se_name <- paste0("SE.", drug_name, ".", d, ".", q)
+          coef_name <- paste0("COEFS.", drug_name, ".", l, q)
+          se_name <- paste0("SE.", drug_name, ".", l, q)
           
           coef_vector <- get(coef_name)
           se_vector <- get(se_name)
@@ -852,14 +438,28 @@ for (k in outcomes_per_drugclass) {
           pooled_hr_string <- get(pooled_hr_string_name)
           
           
+          # test significance interaction
+          coef_name2 <- paste0("COEFS.interaction.term.only.", l)
+          se_name2 <- paste0("SE.interaction.term.only.", l)
+          
+          coef_vector <- get(coef_name2)
+          se_vector <- get(se_name2)
+          # Calculate the Wald statistic
+          wald_stat <- mean(coef_vector) / sqrt(mean(se_vector^2) + var(coef_vector) / n.imp)
+          
+          # Calculate the p-value from the Wald statistic (using normal approximation)
+          p_value_interaction <- 2 * (1 - pnorm(abs(wald_stat)))
+          print(paste0("P value for ", l, " interaction (", levels(factor(cohort[[studydrug_var]]))[length(levels(factor(cohort[[studydrug_var]])))], " with ", levels(factor(cohort[[studydrug_var]]))[1], "): ", p_value_interaction))
+          
         }
         
         # create dataframe containing events, follow-up etc
-        outcome_hr <- data.frame(outcome = k, 
-                                 albuminuria_cat = q,
-                                 count = as.numeric(count %>% filter(albuminuria_cat==q) %>% select(paste0(drug_name, "_count"))),
-                                 followup = as.numeric(followup %>% filter(albuminuria_cat==q) %>% select(paste0(drug_name, "_followup"))), 
-                                 events = as.character(events %>% filter(albuminuria_cat==q) %>% select(paste0(drug_name, "_events"))),
+        outcome_hr <- data.frame(outcome = k,
+                                 factor = l,
+                                 condition = q,
+                                 count = as.numeric(count %>% filter(!!sym(l)==q) %>% select(paste0(drug_name, "_count"))),
+                                 followup = as.numeric(followup %>% filter(!!sym(l)==q) %>% select(paste0(drug_name, "_followup"))),
+                                 events = as.character(events %>% filter(!!sym(l)==q) %>% select(paste0(drug_name, "_events"))),
                                  contrast = paste0(drug_name, " vs ", drug_levels[1], collapse = ""),
                                  variable = paste0("studydrug", main, collapse = ""),
                                  analysis = d,
@@ -869,27 +469,26 @@ for (k in outcomes_per_drugclass) {
                                  string = pooled_hr_string)
         
         # combine results by each analysis approach within each drug type (within studydrug variable)
-        albuminuria_hrs <- rbind(albuminuria_hrs, outcome_hr)
+        factor_hrs <- rbind(factor_hrs, outcome_hr)
       }
       
     }
     
   }
   
-}    
-
+}
 
 # ensure hazard ratio and 95% ci are stored as numeric variables
-class(albuminuria_hrs$HR) <- class(albuminuria_hrs$LB) <- class(albuminuria_hrs$UB) <- "numeric"
+class(factor_hrs$HR) <- class(factor_hrs$LB) <- class(factor_hrs$UB) <- "numeric"
 
 # create separate variables for events per number of drug initiations (nN)
-albuminuria_hrs <- albuminuria_hrs %>% 
+factor_hrs <- factor_hrs %>%
   separate(`events`, into = c("events_number", "events_percentage"), sep = " \\(", remove = FALSE) %>%
   mutate(
     `events_percentage` = str_replace(`events_percentage`, "\\)", ""),
-    `nN` = paste0(`events_number`, "/", `count`),
+    `nN` = paste0("  ", format(as.numeric(`events_number`), big.mark = ",", scientific = F), " / ", format(`count`, big.mark = ",", scientific = F)),
   )
 
 # store hazard ratios
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-save(albuminuria_hrs, file=paste0(today, "_albuminuria_hrs.Rda"))
+save(factor_hrs, file=paste0(today, "_factor_hrs.Rda"))

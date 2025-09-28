@@ -2,12 +2,12 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_glp1_imputed_data_withweights_recalibrated.Rda"))
-
-# select studydrug variable
+# set default studydrug variable
 studydrug_var = paste0("studydrug", main)
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
 
+options(datadist=NULL)
 ########################1 PREPARE DATASET####################################################################
 
 
@@ -49,11 +49,8 @@ save(cohort, file=paste0(today, "_t2d_glp1_data_centred_predictors.Rda"))
 # clear R memory to ensure memory limit not exceeded
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "main")))
 
-# variable oha is constant (everyone is on oral antihyperglycaemic treatment), remove as matrix is singular when estimating survival probabilities
-covariates <- covariates[covariates != "oha"]
-
 # if evaluating other risk scores, other relevant outcomes may be added
-outcomes_per_drugclass <- "ckd_egfr50"
+outcomes_per_drugclass <- c("ckd_egfr40", "death")
 
 for (k in outcomes_per_drugclass) {
   
@@ -76,7 +73,7 @@ for (k in outcomes_per_drugclass) {
     
     # fit overlap-weighted cox model
     f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  ", studydrug_var, " + ", paste(covariates, collapse=" + "))) 
-    model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE, weights=cohort[[weights_overlap]])
+    model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)#, weights=cohort[[weights_overlap]])
     
     for (n in 1:length(drug_levels)) { 
       
@@ -214,7 +211,7 @@ rm(list = setdiff(ls(), c("n.imp", "k", "today", "main", "outcomes_per_drugclass
 
 ### add counterfactual observed absolute risk reductions to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
-load(paste0(today, "_t2d_glp1_imputed_data_withweights_recalibrated.Rda"))
+load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
 
 studydrug_var = paste0("studydrug", main)
 
@@ -223,7 +220,7 @@ for (k in outcomes_per_drugclass) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
   load(paste0(today, "_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
-                                   select(.imp, patid, !!sym(studydrug_var), contains("survdiff")), 
+                                   select(.imp, patid, !!sym(studydrug_var), contains("survdiff"), contains("estimate_"), contains("se_")), 
                                  by=c(".imp", "patid", studydrug_var))
   rm(benefits)
 }

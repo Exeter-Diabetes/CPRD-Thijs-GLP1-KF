@@ -24,6 +24,8 @@ library(dcurves)
 library(mgcv)
 library(ggpattern)
 library(ggsignif)
+library(readr)
+
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -42,8 +44,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-# today <- "2025-03-12"
-today <- "2025-03-20"
+today <- "2025-04-15"
 
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
@@ -89,24 +90,30 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 covariates <- c("dstartdate_age", "malesex", 
                 "imd_decile", 
                 "ethnicity_5cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "INS", 
-                "ACEi_or_ARB", "statin", #  "oha", # all patients are on oral antihyperglycaemic treatment so this is constant
+                "pretotalcholesterol", 
+                "preegfr", "uacr", "presbp", 
+                 "INS", 
+                "ACE_or_ARB", 
+                 "statin",
+                "ncurrtx",
                 "smoking_status", 
                 "dstartdate_dm_dur_all", 
                 "hosp_admission_prev_year", 
-                "predrug_af", "predrug_cvd", "predrug_heartfailure"
+                "predrug_af", 
+                "predrug_cvd", 
+                "predrug_heartfailure"
                 )
 
 #outcomes to be studied:
-outcomes <- c("ckd_egfr40", "ckd_egfr50", "ckd_egfr50_5y", "death", "mace_5y", "hf_5y")
-# outcomes_per_drugclass <- c("ckd_egfr50", "mace_5y", "hf_5y")
-outcomes_per_drugclass <- c("ckd_egfr50")
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy")
+safety_outcomes <- c("lowerlimbfracture", "retinopathy") # add acutepancreatitis, upperlimbfracture
+outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr50", "mace", "hf", "death")
 
 
 # set default colour-blind accessible colours for figures later on
 cols <- c("SGLT2" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4" = "#0072B2", "TZD" = "#D55E00")
 #in further analyses, the DPP4 + SU group will be combined, and we will use the dpp4 colour for this (strongest contrast)
-cols <- c(cols, "DPP4/SU" = "#CC79A7", "GLP1 + SGLT2" = "#0072B2")
+cols <- c(cols, "SGLT2 + DPP4/SU" = "#CC79A7", "SGLT2 + GLP1" = "#56B4E9")
 
 # variables to be shown in tables
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd_decile",             # sociodemographic variables
@@ -117,16 +124,17 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd_decile",          
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_cvd", "predrug_heartfailure", "hosp_admission_prev_year",
           "initiation_year",
-          "ncurrtx", "statin", "INS", "ACEi_or_ARB"
+          "ncurrtx", "statin", "INS", "ACE_or_ARB"
           
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_5cat", "imd_decile", "albuminuria_unconfirmed", "albuminuria", 
+factors <- c("malesex", "ethnicity_5cat", "imd_decile", "egfr_cat", "
+             albuminuria_cat", "albuminuria_unconfirmed", "albuminuria", 
              "smoking_status", "predrug_hypertension",
              "predrug_af", "predrug_cvd", "predrug_heartfailure", "hosp_admission_prev_year",
              "initiation_year",
-             "ncurrtx", "statin", "INS", "ACEi_or_ARB")
+             "ncurrtx", "statin", "INS", "ACE_or_ARB")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")
 
