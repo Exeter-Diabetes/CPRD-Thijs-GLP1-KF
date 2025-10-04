@@ -23,7 +23,9 @@ for (m in 1:n.studydrug.vars) {
   
   studydrug_var = paste0("studydrug", m)
   
-  temp <- temp_all %>% filter(.imp != 0) %>% select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate")
+  temp <- temp_all %>% 
+    filter(.imp != 0) %>% 
+    select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate", "ncurrtx2")
   
   # create empty variables for weights
   temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- NA
@@ -33,17 +35,6 @@ for (m in 1:n.studydrug.vars) {
     arrange(dstartdate) %>% 
     filter(!duplicated(!!sym(studydrug_var))) %>% 
     ungroup()
-  
-  # in this design, subjects can theoretically be in the non-GLP1 group, and later on have a 2nd episode in the GLP1 group
-  # if these need to be removed for sensitivity analyses:
-  # temp <- temp %>%
-  #   group_by(.imp, patid) %>%
-  #   filter(
-  #     # Keep "SGLT2 + DPP4/SU" if patient also has "SGLT2 + GLP1"
-  #     !(studydrug2 == "SGLT2 + GLP1" & "SGLT2 + DPP4/SU" %in% studydrug2)
-  #   ) %>%
-  #   ungroup()
-  # 
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
   save(temp, file=paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", m, ".Rda"))
@@ -159,6 +150,9 @@ for (m in 1:n.studydrug.vars) {
 }
 rm(temp_all)
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
+
 # get weighted baseline table
 
 studydrug_var = paste0("studydrug", main)
@@ -166,9 +160,6 @@ weights_overlap = paste0("overlap", main)
 
 # save weighted cohort
 weighted_cohort <- cohort %>% filter(.imp != 0) %>%
-  select(!!sym(studydrug_var), !!sym(weights_overlap), all_of(vars)) %>%
-  mutate(count=round(!!sym(weights_overlap)*10000000),0) %>%
-  uncount(count) %>%
   mutate(malesex=as.logical(malesex),
          statin=as.logical(statin),
          INS = as.logical(INS),
@@ -176,7 +167,10 @@ weighted_cohort <- cohort %>% filter(.imp != 0) %>%
          predrug_cvd = as.logical(predrug_cvd),
          predrug_heartfailure = as.logical(predrug_heartfailure),
          predrug_af = as.logical(predrug_af),
-         hosp_admission_prev_year = as.logical(hosp_admission_prev_year))
+         hosp_admission_prev_year = as.logical(hosp_admission_prev_year)) %>%
+  select(!!sym(studydrug_var), !!sym(weights_overlap), all_of(vars)) %>%
+  mutate(count=round(!!sym(weights_overlap)*10000000),0) %>%
+  uncount(count) 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 save(weighted_cohort, file=paste0(today, "_weighted_imputed_data_for_table.Rda"))

@@ -72,10 +72,12 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       studydrug1 = ifelse(studydrug1 == "GLP1",
                           "SGLT2 + GLP1", ifelse(studydrug1 == "DPP4", "SGLT2 + DPP4", "SGLT2 + SU")),
       studydrug2 = ifelse(studydrug1 != "SGLT2 + GLP1", "SGLT2 + DPP4/SU", "SGLT2 + GLP1"),
-      studydrug3 = ifelse(studydrug2 == "SGLT2 + GLP1", ifelse(grepl("semaglutide", drug_substance, ignore.case=T),
-                                                       ifelse(grepl("oral", drug_substance, ignore.case=T),
-                                                              "Oral semaglutide", "Subcutaneous semaglutide"),
-                                                       "Other GLP1"), studydrug2)
+      studydrug3 = ifelse(studydrug2 == "SGLT2 + GLP1",
+                          ifelse(grepl("semaglutide", drug_substance, ignore.case = T) & 
+                                   !grepl("oral", drug_substance, ignore.case = T) |
+                                   grepl("dulaglutide", drug_substance, ignore.case = T) |
+                                   grepl("efpeglenatide", drug_substance, ignore.case = T),
+                                 "GLP1 with direct kidney outcome evidence", "Other GLP1"), studydrug2)
       
     )
   
@@ -88,14 +90,14 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   
   # h) Remove if CVD before index date
-  
+
   # cohort <- cohort %>%
-  #   mutate(predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0)) 
-  # 
+  #   mutate(predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0))
+  #
   # q <- cohort %>% filter(predrug_cvd == 1) %>% nrow()
-  # 
+  #
   # print(paste0("Number of drug episodes excluded with established CVD: ", q))
-  # 
+  #
   # cohort <- cohort %>%
   #   filter(predrug_cvd==0)
   # 
@@ -224,48 +226,6 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     summarise(next_glp1_start=min(next_glp1, na.rm=TRUE)) %>%
     ungroup()
   
-  later_semaglutide <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("semaglutide", drug_substance, ignore.case=T)) %>%
-                  select(patid, next_semaglutide=dstartdate)), by="patid") %>%
-    filter(next_semaglutide>dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(next_semaglutide_start=min(next_semaglutide, na.rm=TRUE)) %>%
-    ungroup()
-  
-  later_other_glp1 <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("Other GLP1", drug_substance, ignore.case=T)) %>%
-                  select(patid, next_other_glp1=dstartdate)), by="patid") %>%
-    filter(next_other_glp1>dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(next_other_glp1_start=min(next_other_glp1, na.rm=TRUE)) %>%
-    ungroup()
-  
-  later_semaglutide_oral <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("Oral semaglutide", drug_substance, ignore.case=T)) %>%
-                  select(patid, next_semaglutide_oral=dstartdate)), by="patid") %>%
-    filter(next_semaglutide_oral>dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(next_semaglutide_oral_start=min(next_semaglutide_oral, na.rm=TRUE)) %>%
-    ungroup()
-  
-  later_semaglutide_subcut <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("semaglutide", drug_substance, ignore.case=T) &
-                           !grepl("oral", drug_substance, ignore.case=T)) %>%
-                  select(patid, next_semaglutide_subcut=dstartdate)), by="patid") %>%
-    filter(next_semaglutide_subcut>dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(next_semaglutide_subcut_start=min(next_semaglutide_subcut, na.rm=TRUE)) %>%
-    ungroup()
-  
-  
   last_sglt2_stop <- cohort %>%
     select(patid, dstartdate) %>%
     inner_join((all_drug_periods_dataset %>%
@@ -306,66 +266,16 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     summarise(last_glp1_stop=min(last_glp1, na.rm=TRUE)) %>%
     ungroup()
   
-  last_semaglutide <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("semaglutide", drug_substance, ignore.case=T)) %>%
-                  select(patid, last_semaglutide=dstopdate_substance)), by="patid") %>%
-    filter(last_semaglutide<dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(last_semaglutide_stop=min(last_semaglutide, na.rm=TRUE)) %>%
-    ungroup()
-  
-  last_other_glp1 <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("Other GLP1", drug_substance, ignore.case=T)) %>%
-                  select(patid, last_other_glp1=dstopdate_substance)), by="patid") %>%
-    filter(last_other_glp1<dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(last_other_glp1_stop=min(last_other_glp1, na.rm=TRUE)) %>%
-    ungroup()
-  
-  
-  last_semaglutide_oral <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("Oral semaglutide", drug_substance, ignore.case=T)) %>%
-                  select(patid, last_semaglutide_oral=dstopdate_substance)), by="patid") %>%
-    filter(last_semaglutide_oral<dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(last_semaglutide_oral_stop=min(last_semaglutide_oral, na.rm=TRUE)) %>%
-    ungroup()
-  
-  last_semaglutide_subcut <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(grepl("semaglutide", drug_substance, ignore.case=T) &
-                           !grepl("oral", drug_substance, ignore.case=T)) %>%
-                  select(patid, last_semaglutide_subcut=dstopdate_substance)), by="patid") %>%
-    filter(last_semaglutide_subcut<dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(last_semaglutide_subcut_stop=min(last_semaglutide_subcut, na.rm=TRUE)) %>%
-    ungroup()
-  
   
   cohort <- cohort %>%
     left_join(later_sglt2, by=c("patid", "dstartdate")) %>%
     left_join(later_dpp4, by=c("patid", "dstartdate")) %>%
     left_join(later_su, by=c("patid", "dstartdate")) %>%
     left_join(later_glp1, by=c("patid", "dstartdate")) %>%
-    left_join(later_semaglutide, by=c("patid", "dstartdate")) %>%
-    left_join(later_other_glp1, by=c("patid", "dstartdate")) %>%
-    left_join(later_semaglutide_oral, by=c("patid", "dstartdate")) %>%
-    left_join(later_semaglutide_subcut, by=c("patid", "dstartdate")) %>%
     left_join(last_sglt2_stop, by=c("patid", "dstartdate")) %>%
     left_join(last_dpp4_stop, by=c("patid", "dstartdate")) %>%
     left_join(last_su_stop, by=c("patid", "dstartdate")) %>%
-    left_join(last_glp1_stop, by=c("patid", "dstartdate")) %>%
-    left_join(last_semaglutide, by=c("patid", "dstartdate")) %>%
-    left_join(last_other_glp1, by=c("patid", "dstartdate")) %>%
-    left_join(last_semaglutide_oral, by=c("patid", "dstartdate")) %>%
-    left_join(last_semaglutide_subcut, by=c("patid", "dstartdate")) 
+    left_join(last_glp1_stop, by=c("patid", "dstartdate")) 
   
   
   # Tidy up gender, ncurrtx, drugline and ethnicity variables

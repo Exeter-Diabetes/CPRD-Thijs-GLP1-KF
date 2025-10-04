@@ -16,7 +16,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   # Add survival variables for outcomes for main analysis
   
   
-  main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy")
+  main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
 
   
   cohort <- cohort_dataset %>%
@@ -47,15 +47,14 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                  #    dstopdate_class+183,
                                  na.rm=TRUE),
 
-           cens_sens3_3_yrs=pmin(dstartdate+(365.25*3),
-                                 hes_end_date,
-                                 gp_end_date,
-                                 death_date,
-                                 if_else(studydrug3!="Other GLP1", next_other_glp1_start, as.Date("2050-01-01")),
-                                 if_else(studydrug3!="Subcutaneous semaglutide", next_semaglutide_subcut_start, as.Date("2050-01-01")),
-                                 if_else(studydrug3!="Oral semaglutide", next_semaglutide_oral_start, as.Date("2050-01-01")),
-                                 #    dstopdate_class+183,
-                                 na.rm=TRUE),
+           # cens_sens3_3_yrs=pmin(dstartdate+(365.25*3),
+           #                       hes_end_date,
+           #                       gp_end_date,
+           #                       death_date,
+           #                       if_else(studydrug3!="GLP1 with direct kidney outcome evidence", next_other_glp1_start, as.Date("2050-01-01")),
+           #                       if_else(studydrug3!="Other GLP1", next_glp1_with_direct_kidney_outcome_evidence_start, as.Date("2050-01-01")),
+           #                       #    dstopdate_class+183,
+           #                       na.rm=TRUE),
            
            
            
@@ -91,14 +90,11 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                            hf_death_date_any_cause,
                            na.rm=TRUE),
            
-           # acutepancreatitis_outcome=pmin(postdrug_first_acutepancreatitis,
-           #                                na.rm=TRUE),
+           acutepancreatitis_outcome=pmin(postdrug_first_acutepancreatitis,
+                                          na.rm=TRUE),
            
            retinopathy_outcome=pmin(postdrug_first_retinopathy,
                                           na.rm=TRUE),
-           
-           # upperlimbfracture_outcome=pmin(postdrug_first_upperlimbfracture,
-           #                                na.rm=TRUE),
            
            lowerlimbfracture_outcome=pmin(postdrug_first_lowerlimbfracture,
                                           na.rm=TRUE),

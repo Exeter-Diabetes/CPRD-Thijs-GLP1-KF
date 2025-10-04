@@ -8,14 +8,14 @@ source("00 Setup.R")
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Raw data/")
-load(paste0("2025-04-04_t2d_1stinstance_a.Rda"))
-load(paste0("2025-04-04_t2d_1stinstance_b.Rda"))
+load(paste0("2025-10-01_t2d_1stinstance_a.Rda"))
+load(paste0("2025-10-01_t2d_1stinstance_b.Rda"))
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
 rm(t2d_1stinstance_b)
 
-load(paste0("2025-04-04_t2d_all_drug_periods.Rda"))
+load(paste0("2025-10-01_t2d_all_drug_periods.Rda"))
 
 # add variable for age and diabetes duration
 t2d_1stinstance <- t2d_1stinstance %>% mutate(
@@ -43,6 +43,9 @@ table(cohort$studydrug1)
 # SGLT2 + SU SGLT2 + DPP4 SGLT2 + GLP1 
 # 51390        84820       200390
 
+rm(t2d_1stinstance)
+rm(t2d_all_drug_periods)
+gc()
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
@@ -50,7 +53,7 @@ source("survival_variables_kf.R")
 
 cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
 
-rm(list=setdiff(ls(), c("cohort", "today", "vars", "factors", "nonnormal", "main")))
+rm(list=setdiff(ls(), c("cohort", "today", "vars", "factors", "nonnormal", "main", "outcomes")))
 
 # create acr variable for ckdpc risk scores that uses further source of acr if acr not available
 cohort <- cohort %>% 
@@ -80,26 +83,26 @@ cohort <- cohort %>%
          regstartdate, 
          gp_end_date, death_date, 
          gp_end_date,
-         drug_class, contains("studydrug"), dstartdate, dstopdate_class, drugline_all, drug_substance, ncurrtx, DPP4, GLP1, 
-         MFN, SGLT2, SU, TZD, INS, dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
+         drug_class, contains("studydrug"), dstartdate, dstopdate_class, drugline_all, drug_substance, ncurrtx, ncurrtx2,
+         DPP4, GLP1, MFN, SGLT2, SU, TZD, INS, 
+         dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
          prehdl, preldl, pretriglyceride, pretotalcholesterol, prealt, presbp, predbp, preegfr, preckdstage, 
          preacr, uacr, 
          qrisk2_smoking_cat, 
          contains("cens"), last_sglt2_stop, last_glp1_stop, oha, timeprevcombo_class,
          ##add variables necessary to calculate qrisk2/qhdf and ckdpc scores
-         predrug_fh_premature_cvd, predrug_af, predrug_rheumatoidarthritis,
+         predrug_af,
          predrug_angina, predrug_myocardialinfarction, predrug_stroke, predrug_revasc,
          predrug_heartfailure, predrug_cvd,
-         predrug_heartfailure, predrug_hypertension, 
-         # predrug_acutepancreatitis,
+         predrug_hypertension, 
+         predrug_acutepancreatitis,
          predrug_earliest_ace_inhibitors, predrug_earliest_arb,
          predrug_earliest_beta_blockers, predrug_latest_ace_inhibitors, 
          predrug_latest_arb, predrug_latest_beta_blockers, 
          predrug_earliest_ca_channel_blockers, predrug_latest_ca_channel_blockers, 
          predrug_earliest_thiazide_diuretics, predrug_latest_thiazide_diuretics,
          predrug_rheumatoidarthritis, predrug_fh_premature_cvd, 
-         # predrug_dka, predrug_falls, predrug_dementia, 
-         hosp_admission_prev_year,
+         hosp_admission_prev_year, predrug_efi_score,
          statin, ACE, ARB, BB, finerenone, CCB, 
          ThZD, loopD, MRA, 
          ckd_egfr40_outcome_type, preacr_confirmed, preacr_previous, preacr_previous_date, preacr_next, preacr_next_date
@@ -127,11 +130,11 @@ cohort$initiation_year <- paste0(
 # for the sake of imputation, we will class missing as a separate category "missing" (5-cat ethnicity: 5; QRISK2: 10)
 cohort <- cohort %>%
   mutate(ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", as.character(ethnicity_qrisk2)),
-         ethnicity_5cat=ifelse(is.na(ethnicity_5cat), "3", as.character(ethnicity_5cat)),
-         ethnicity_5cat=factor(ethnicity_5cat,
+         ethnicity_4cat=ifelse(is.na(ethnicity_5cat) | ethnicity_5cat == "4", "3", as.character(ethnicity_5cat)),
+         ethnicity_4cat=factor(ethnicity_4cat,
                                levels = c(0, 1, 2, 3),
                                labels = c("White", "South Asian", "Black", "Other or unknown"))) %>% 
-  relocate(ethnicity_5cat, .after = last_col())
+  relocate(ethnicity_4cat, .after = last_col())
 
 # imd_decile is not a continuous variable - we will categorise this as quintiles
 cohort <- cohort %>% mutate(
@@ -206,7 +209,7 @@ outlist1 <- c("patid", "gp_end_date", "drug_class", "drugline_all", "ncurrtx",
               "DPP4", "GLP1", "SGLT2", "SU", "INS", 
               names(cohort)[grep("cens", names(cohort))],
               "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
-              "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat",
+              "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_4cat",
               "last_glp1_stop", "last_sglt2_stop", "dstopdate_class",
               "ckd_egfr40_outcome_type", "preacr_confirmed", "preacr_previous", 
               "preacr_previous_date", "preacr_next", "preacr_next_date", 
@@ -428,8 +431,15 @@ temp <- temp %>% mutate(
   albuminuria_unconfirmed = ifelse(uacr < 3, F, T),
   albuminuria = preacr_confirmed,        # 
   ACE_or_ARB = ifelse(temp$ACE + temp$ARB > 0, T, F),
+  ncurrtx2 = ncurrtx,
   ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx == 3, "3.", "4+"))),
-  ncurrtx = relevel(as.factor(ncurrtx), ref = "3.")
+  ncurrtx = relevel(as.factor(ncurrtx), ref = "3."),
+  predrug_efi_cat = case_when(
+    predrug_efi_score < 0.12 ~ "fit",
+    predrug_efi_score >= 0.12 & predrug_efi_score < 0.24 ~ "mild",
+    predrug_efi_score >= 0.24 & predrug_efi_score < 0.36 ~ "moderate",
+    predrug_efi_score >= 0.36 ~ "severe"
+  )
 )
 
 
@@ -442,13 +452,18 @@ rm(p)
 q <- temp %>% .$patid %>% unique() %>% length()
 print(paste0("Number of subjects in study population ", q))
 
+studydrug_var = paste0("studydrug", main)
 # save imputed dataset so this can be used in the subsequent scripts
 temp <- temp %>%
        mutate(across(starts_with("studydrug"), as.factor),
               egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
               egfr_cat = factor(egfr_cat),
               albuminuria_cat = ifelse(uacr >30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
-              albuminuria_cat = factor(albuminuria_cat))
+              albuminuria_cat = factor(albuminuria_cat)) %>%
+  group_by(.imp, patid, !!sym(studydrug_var)) %>% 
+  arrange(dstartdate) %>% 
+  filter(!duplicated(!!sym(studydrug_var))) %>% 
+  ungroup()
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
@@ -466,7 +481,7 @@ for (m in 1:n.studydrug.vars) {
                             group_by(.imp, patid) %>% filter(!duplicated(!!sym(studydrug_var))) %>% ungroup(),  
                           factorVars = factors, test = F)
   
-  tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+  tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, smd = T, printToggle = T)
   
   ## Save to a CSV file
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")

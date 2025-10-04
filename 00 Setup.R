@@ -6,11 +6,11 @@ library(gt)
 library(gtsummary)
 library(mice)
 library(tableone)
+library(table1)
 # library(devtools)
 # devtools::install_github("Exeter-Diabetes/EHRBiomarkr")
 library(EHRBiomarkr)
 library(broom)
-library(flextable)
 library(survival)
 library(survminer)
 library(rms)
@@ -44,7 +44,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2025-04-15"
+today <- "2025-10-01"
 
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
@@ -89,7 +89,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 # set vector of covariates used for multivariable adjustments and weighting
 covariates <- c("dstartdate_age", "malesex", 
                 "imd_decile", 
-                "ethnicity_5cat", "initiation_year", "prebmi", "prehba1c",
+                "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
                 "pretotalcholesterol", 
                 "preegfr", "uacr", "presbp", 
                  "INS", 
@@ -99,15 +99,16 @@ covariates <- c("dstartdate_age", "malesex",
                 "smoking_status", 
                 "dstartdate_dm_dur_all", 
                 "hosp_admission_prev_year", 
+                "predrug_efi_score",
                 "predrug_af", 
                 "predrug_cvd", 
                 "predrug_heartfailure"
                 )
 
 #outcomes to be studied:
-outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy")
-safety_outcomes <- c("lowerlimbfracture", "retinopathy") # add acutepancreatitis, upperlimbfracture
-outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr50", "mace", "hf", "death")
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
+safety_outcomes <- c("lowerlimbfracture", "retinopathy", "acutepancreatitis") 
+outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr50", "mace", "hf")
 
 
 # set default colour-blind accessible colours for figures later on
@@ -116,23 +117,25 @@ cols <- c("SGLT2" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4" = "#
 cols <- c(cols, "SGLT2 + DPP4/SU" = "#CC79A7", "SGLT2 + GLP1" = "#56B4E9")
 
 # variables to be shown in tables
-vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd_decile",             # sociodemographic variables
+vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd_decile",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
           "pretriglyceride", "prehba1c",  
           "preegfr", "egfr_cat",
           "uacr", "albuminuria_unconfirmed", "albuminuria", "albuminuria_cat",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_cvd", "predrug_heartfailure", "hosp_admission_prev_year",
+          "predrug_af", "predrug_cvd", "predrug_heartfailure", 
+          "hosp_admission_prev_year", "predrug_efi_score", "predrug_efi_cat",
           "initiation_year",
           "ncurrtx", "statin", "INS", "ACE_or_ARB"
           
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_5cat", "imd_decile", "egfr_cat", "
+factors <- c("malesex", "ethnicity_4cat", "imd_decile", "egfr_cat", "
              albuminuria_cat", "albuminuria_unconfirmed", "albuminuria", 
              "smoking_status", "predrug_hypertension",
-             "predrug_af", "predrug_cvd", "predrug_heartfailure", "hosp_admission_prev_year",
+             "predrug_af", "predrug_cvd", "predrug_heartfailure", 
+             "hosp_admission_prev_year",  "predrug_efi_cat",
              "initiation_year",
              "ncurrtx", "statin", "INS", "ACE_or_ARB")
 

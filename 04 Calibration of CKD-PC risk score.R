@@ -169,6 +169,12 @@ cstat_est <- summary(raw_mod)$concordance[1]
 cstat_est_ll <- summary(raw_mod)$concordance[1]-(1.96*summary(raw_mod)$concordance[2])
 cstat_est_ul <- summary(raw_mod)$concordance[1]+(1.96*summary(raw_mod)$concordance[2])
 
+## C-stat for uACR
+mod_uacr_presegfr <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ uacr, data=cohort[cohort[[studydrug_var]] == reference_group,], method="breslow")
+cstat_uacr_presegfr_est <- summary(mod_uacr_presegfr)$concordance[1]
+cstat_uacr_presegfr_est_ll <- summary(mod_uacr_presegfr)$concordance[1]-(1.96*summary(mod_uacr_presegfr)$concordance[2])
+cstat_uacr_presegfr_est_ul <- summary(mod_uacr_presegfr)$concordance[1]+(1.96*summary(mod_uacr_presegfr)$concordance[2])
+
 ## AUC
 ROC_raw <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
 auc(ROC_raw)
@@ -270,7 +276,11 @@ model_metrics_presegfr <- data.frame(
   c_statistic = round(cstat_est, 4),
   c_statistic_ci = paste0(round(cstat_est_ll, 4), "-", round(cstat_est_ul,4)),
   brier_score = mean(brier_raw),
-  brier_score_ci = paste0(mean(brier_raw)-1.96*brier_raw_se_pooled, "-", mean(brier_raw)+1.96*brier_raw_se_pooled)
+  brier_score_ci = paste0(mean(brier_raw)-1.96*brier_raw_se_pooled, "-", mean(brier_raw)+1.96*brier_raw_se_pooled),
+  c_statistic_uacr = round(cstat_uacr_presegfr_est, 4),
+  c_statistic_uacr_ci = paste0(round(cstat_uacr_presegfr_est_ll, 4), "-", round(cstat_uacr_presegfr_est_ul, 4)),
+  c_statistic_uacr_egfr = NA,
+  c_statistic_uacr_egfr_ci = NA
 )
 
 
@@ -420,6 +430,18 @@ cstat_est_redegfr <- summary(raw_mod)$concordance[1]
 cstat_est_ll_redegfr <- summary(raw_mod)$concordance[1]-(1.96*summary(raw_mod)$concordance[2])
 cstat_est_ul_redegfr <- summary(raw_mod)$concordance[1]+(1.96*summary(raw_mod)$concordance[2])
 
+## C-stat for uACR and eGFR
+
+mod_uacr_redegfr <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ uacr, data=cohort[cohort[[studydrug_var]] == reference_group,], method="breslow")
+cstat_uacr_redegfr_est <- summary(mod_uacr_redegfr)$concordance[1]
+cstat_uacr_redegfr_est_ll <- summary(mod_uacr_redegfr)$concordance[1]-(1.96*summary(mod_uacr_redegfr)$concordance[2])
+cstat_uacr_redegfr_est_ul <- summary(mod_uacr_redegfr)$concordance[1]+(1.96*summary(mod_uacr_redegfr)$concordance[2])
+
+mod_uacr_egfr_redegfr <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ uacr + preegfr, data=cohort[cohort[[studydrug_var]] == reference_group,], method="breslow")
+cstat_uacr_egfr_redegfr_est <- summary(mod_uacr_egfr_redegfr)$concordance[1]
+cstat_uacr_egfr_redegfr_est_ll <- summary(mod_uacr_egfr_redegfr)$concordance[1]-(1.96*summary(mod_uacr_egfr_redegfr)$concordance[2])
+cstat_uacr_egfr_redegfr_est_ul <- summary(mod_uacr_egfr_redegfr)$concordance[1]+(1.96*summary(mod_uacr_egfr_redegfr)$concordance[2])
+
 ## AUC
 ROC_raw <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
 auc(ROC_raw)
@@ -521,7 +543,11 @@ model_metrics_redegfr <- data.frame(
   c_statistic = round(cstat_est_redegfr, 4),
   c_statistic_ci = paste0(round(cstat_est_ll_redegfr, 4), "-", round(cstat_est_ul_redegfr,4)),
   brier_score = mean(brier_raw_redegfr),
-  brier_score_ci = paste0(mean(brier_raw_redegfr)-1.96*brier_raw_se_pooled_redegfr, "-", mean(brier_raw_redegfr)+1.96*brier_raw_se_pooled_redegfr)
+  brier_score_ci = paste0(mean(brier_raw_redegfr)-1.96*brier_raw_se_pooled_redegfr, "-", mean(brier_raw_redegfr)+1.96*brier_raw_se_pooled_redegfr),
+  c_statistic_uacr = round(cstat_uacr_redegfr_est, 4),
+  c_statistic_uacr_ci = paste0(round(cstat_uacr_redegfr_est_ll, 4), "-", round(cstat_uacr_redegfr_est_ul, 4)),
+  c_statistic_uacr_egfr = round(cstat_uacr_egfr_redegfr_est, 4),
+  c_statistic_uacr_egfr_ci = paste0(round(cstat_uacr_egfr_redegfr_est_ll, 4), "-", round(cstat_uacr_egfr_redegfr_est_ul, 4))
 )
 
 ############################3 STORE MODEL METRICS################################################################
