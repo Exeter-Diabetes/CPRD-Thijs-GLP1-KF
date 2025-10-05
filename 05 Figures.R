@@ -1065,7 +1065,7 @@ temp_k <- temp %>%
   mutate(drug = factor(drug, levels = c("SGLT2 + DPP4/SU", "SGLT2 + GLP1")))
 
 
-# --- extract the reference group's nN for this outcome (first factor level) ---
+# extract the reference group's nN for this outcome (first factor level)
 ref_level <- levels(temp_k$drug)[1]
 
 # pull unique nN for the ref level (take first non-NA if multiple)
@@ -1104,9 +1104,19 @@ heading <- tibble(
 
 plot_df <- bind_rows(heading, temp_k)
 
+custom_order <- c("≥40% eGFR decline/ESKD", "ow", "adj", "iptw", "fg_ow")
+
+# Convert analysis to a factor with levels in the desired order
+plot_df$analysis <- factor(plot_df$analysis, levels = custom_order)
+plot_df <- plot_df %>%
+  arrange(analysis, desc(HR %>% is.na()))
+
+# Reassign y_order
+plot_df$y_order <- rev(seq_len(nrow(plot_df)))
+
 # Define pretty labels
 analysis_labels <- c(
-  "ow" = "Overlap-weighting",
+  "ow" = "Overlap-weighting\n(primary analysis)",
   "iptw" = "Inverse probability of\ntreatment weighting",
   "adj"       = "Multivariable adjustment only",
   "fg_ow" = "Fine-Gray competing risk analysis\n(overlap-weighted)"
@@ -1117,9 +1127,6 @@ xmax = 2.5
 # Apply mapping before building plot_df
 plot_df <- plot_df %>%
   mutate(analysis = recode(analysis, !!!analysis_labels))
-
-# Set y order (reverse for top-down order)
-plot_df$y_order <- rev(seq_len(nrow(plot_df)))
 
 # Forest plot with tabulated extras
 forest_plot <- ggplot(plot_df, aes(y = y_order)) +
@@ -1474,7 +1481,7 @@ cif_ow <- ggsurvplot(
   font.x = 12,
   font.y = 12,
   
-  legend = c(0.2, 0.8),
+  legend = c(0.8, 0.15),
   break.y.by = 0.01,
   ylim = c(0, 0.05),
   censor.size = 1,
@@ -1497,7 +1504,25 @@ cif_ow$plot <- cif_ow$plot + coord_cartesian(xlim = c(0.12, 2.9), ylim = c(0,0.0
 cif_ow$table <- cif_unadj$table + theme(plot.title = element_text(size = 12))
 cif_ow$cumevents <- cif_unadj$cumevents + theme(plot.title = element_text(size = 12))
 
-cif_ow
+HR <- hrs %>% filter(outcome == "ckd_egfr40", variable == "studydrug2", analysis == "ow", contrast == "SGLT2 + GLP1 vs SGLT2 + DPP4/SU") %>% .$HR  
+LB <- hrs %>% filter(outcome == "ckd_egfr40", variable == "studydrug2", analysis == "ow", contrast == "SGLT2 + GLP1 vs SGLT2 + DPP4/SU") %>% .$LB 
+UB <- hrs %>% filter(outcome == "ckd_egfr40", variable == "studydrug2", analysis == "ow", contrast == "SGLT2 + GLP1 vs SGLT2 + DPP4/SU") %>% .$UB 
+
+p_value <- 2 * (1 - pnorm(abs(log(HR) / ((log(UB) - log(LB)) / (2 * 1.96)))))
+
+cif_text <- data.frame(x = 0.25, y = 0.03, lab = paste0("HR ", sprintf("%.2f", HR), " (95% CI ", sprintf("%.2f", LB), ", ", sprintf("%.2f", UB), ")\np=", sprintf("%.3f", p_value)))
+
+# add hazard ratio + p value as text
+cif_ow$plot$layers[[4]] <- layer(geom="text", position = "identity", stat = "identity", 
+                                 mapping = aes(x = x, y = y, label = lab, hjust = 0), data = cif_text,
+                                 params = list(size = 4.5, colour = "black"))
+
+# remove white square behind legend
+cif_ow$plot <- cif_ow$plot + theme(
+  legend.background = element_rect(fill = "transparent", colour = NA),
+  legend.box.background = element_rect(fill = "transparent", colour = NA)
+)
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 tiff(paste0(today, "_", k, "_cumulative_incidence_curves.tiff"), width=7.5, height=6, units = "in", res=800)
 print(cif_ow)
