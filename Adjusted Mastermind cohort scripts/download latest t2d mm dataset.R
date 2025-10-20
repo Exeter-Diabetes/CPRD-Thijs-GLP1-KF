@@ -24,7 +24,7 @@ today <- as.character(Sys.Date(), format="%Y%m%d")
 
 ## Filter just type 2s
 t2d_1stinstance <- t2d_1stinstance %>% 
-  analysis$cached("20251001_t2d_1stinstance", indexes=c("patid", "dstartdate", "drug_class", "drug_substance"))
+  analysis$cached("20251019_t2d_1stinstance", indexes=c("patid", "dstartdate", "drug_class", "drug_substance"))
 
 ### Check unique patid count
 # t2d_1stinstance %>% distinct(patid) %>% count()
@@ -64,7 +64,7 @@ rm(t2d_1stinstance_b)
 
 ## Just T2s
 t2d_all_drug_periods <- t2d_all_drug_periods %>%
-  analysis$cached("20251001_t2d_all_drug_periods")
+  analysis$cached("20251019_t2d_all_drug_periods")
 
 
 t2d_all_drug_periods <- collect(t2d_all_drug_periods %>% mutate(patid=as.character(patid)))

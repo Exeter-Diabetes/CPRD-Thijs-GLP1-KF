@@ -10,7 +10,7 @@ source("00 Setup.R")
 gc()
 
 # calculate weights
-for (n in 1:4) {
+for (r in 1:5) {
   
 
   studydrug_var = paste0("studydrug", main)
@@ -20,26 +20,26 @@ for (n in 1:4) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
   load(paste0(today, "_t2d_glp1_minimal_dataset_for_weight_calculation_", main, ".Rda"))
   
-    if (n == 1) {
+    if (r == 1) {
     print(paste0("Remove multiple episodes per subject"))
       #subjects can theoretically be in the non-GLP1 group, and later on have a 2nd episode in the GLP1 group
       temp <- temp %>%
         group_by(.imp, patid) %>%
         filter(
-          # Keep "SGLT2 + DPP4/SU" if patient also has "SGLT2 + GLP1"
-          !(studydrug2 == "SGLT2 + GLP1" & "SGLT2 + DPP4/SU" %in% studydrug2)
+          # Keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
+          !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
         ) %>%
         ungroup()
       q = "single_episodes"
     }
   
-  if (n == 2) {
+  if (r == 2) {
     print(paste0("Remove subjects on insulin"))
     temp <- temp %>% filter(INS == F)
     q = "no_insulin"
   }
   
-  if (n == 3) {
+  if (r == 3) {
     print(paste0("Remove subjects on more than 4 current diabetes treatments"))
     temp <- temp %>% filter(
       ncurrtx2 < 5
@@ -47,17 +47,23 @@ for (n in 1:4) {
     q = "ncurrtx_upto_4"
   }
   
-  if (n == 4) {
+  if (r == 4) {
     print(paste0("All previous exclusion rules combined"))
     temp <- temp %>% filter(
       ncurrtx2 < 5 & INS == F
     ) %>% select(-ncurrtx2) %>%
       group_by(.imp, patid) %>%
       filter(
-        !(studydrug2 == "SGLT2 + GLP1" & "SGLT2 + DPP4/SU" %in% studydrug2)
+        !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
       ) %>%
       ungroup()
     q = "all_3_exclusions"
+  }
+  
+  if (r == 5) {
+    print(paste0("Remove subjects without linkage to secondary care data"))
+    temp <- temp %>% filter(with_hes == 1)
+    q = "hes_data_only"
   }
   
   gc()
@@ -117,40 +123,50 @@ for (n in 1:4) {
     filter(!duplicated(!!sym(studydrug_var))) %>% 
     ungroup()
   
-  if (n == 1) {
+  outcomes_sensitivity = "ckd_egfr40"
+  
+  if (r == 1) {
     print(paste0("Remove multiple episodes per subject"))
     temp <- temp %>%
       group_by(.imp, patid) %>%
       filter(
-        # Keep "SGLT2 + DPP4/SU" if patient also has "SGLT2 + GLP1"
-        !(studydrug2 == "SGLT2 + GLP1" & "SGLT2 + DPP4/SU" %in% studydrug2)
+        # Keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
+        !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
       ) %>%
       ungroup()
     
   }
   
-  if (n == 2) {
+  if (r == 2) {
     print(paste0("Remove subjects on insulin"))
     temp <- temp %>% filter(INS == F)
   }
   
-  if (n == 3) {
+  if (r == 3) {
     print(paste0("Remove subjects on more than 4 current diabetes treatments"))
     temp <- temp %>% filter(
       ncurrtx2 < 5
     ) %>% select(-ncurrtx2)
   }
   
-  if (n == 4) {
+  if (r == 4) {
     print(paste0("All previous exclusion rules combined"))
     temp <- temp %>% filter(
       ncurrtx2 < 5 & INS == F
     ) %>% select(-ncurrtx2) %>%
       group_by(.imp, patid) %>%
       filter(
-        !(studydrug2 == "SGLT2 + GLP1" & "SGLT2 + DPP4/SU" %in% studydrug2)
+        !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
       ) %>%
       ungroup()
+  
+  }
+  
+  if (r == 5) {
+    print(paste0("Remove subjects without linkage to secondary care data"))
+    temp <- temp %>% filter(with_hes == 1)
+    
+    outcomes_sensitivity <- c(outcomes_sensitivity, "mace", "hf")
   }
   
   temp_all <- temp %>% filter(.imp != 0) 
@@ -209,8 +225,7 @@ for (n in 1:4) {
     
     
     # calculate hazard ratios per outcome
-    k = "ckd_egfr40"      
-      
+    for (k in outcomes_sensitivity) {      
       # for other studydrug variables use regular censoring variables
       censvar_var=paste0(k, "_censvar")
       censtime_var=paste0(k, "_censtime_yrs")
@@ -362,12 +377,11 @@ for (n in 1:4) {
           # combine results by each analysis approach within each drug type (within studydrug variable)
           hrs <- rbind(hrs, outcome_hr)
           
-          
         }
         
       }
       
-  
+  }
   # ensure hazard ratio and 95% ci are stored as numeric variables
   class(hrs$HR) <- class(hrs$LB) <- class(hrs$UB) <- "numeric"
   

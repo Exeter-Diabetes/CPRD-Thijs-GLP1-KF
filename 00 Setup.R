@@ -25,6 +25,7 @@ library(mgcv)
 library(ggpattern)
 library(ggsignif)
 library(readr)
+library(cobalt)
 
 
 options(dplyr.summarise.inform = FALSE)
@@ -32,10 +33,10 @@ options(dplyr.summarise.inform = FALSE)
 rm(list=ls())
 
 # set random seed
-set.seed(123)
+set.seed(4072)
 
 # set number of imputations
-n.imp <- 10
+n.imp <- 50
 
 # set number of quantiles
 n.quantiles <- 10
@@ -44,7 +45,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2025-10-01"
+today <- "2025-10-19"
 
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
@@ -87,14 +88,20 @@ pool.rubin.KM <- function(EST,SE,n.imp){
   return(output)}
 
 # set vector of covariates used for multivariable adjustments and weighting
-covariates <- c("dstartdate_age", "malesex", 
+covariates <- c("dstartdate_age", 
+                "malesex", 
                 "imd_decile", 
-                "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
+                "ethnicity_4cat", 
+                "initiation_year", 
+                "prebmi", 
+                "prehba1c",
                 "pretotalcholesterol", 
-                "preegfr", "uacr", "presbp", 
-                 "INS", 
+                "preegfr", 
+                "uacr", 
+                "presbp", 
+                "INS", 
                 "ACE_or_ARB", 
-                 "statin",
+                "statin",
                 "ncurrtx",
                 "smoking_status", 
                 "dstartdate_dm_dur_all", 
@@ -112,30 +119,30 @@ outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr50", "mace", "hf")
 
 
 # set default colour-blind accessible colours for figures later on
-cols <- c("SGLT2" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4" = "#0072B2", "TZD" = "#D55E00")
+cols <- c("SGLT2i" = "#E69F00", "GLP1-RA" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = "#0072B2", "TZD" = "#D55E00")
 #in further analyses, the DPP4 + SU group will be combined, and we will use the dpp4 colour for this (strongest contrast)
-cols <- c(cols, "SGLT2 + DPP4/SU" = "#CC79A7", "SGLT2 + GLP1" = "#56B4E9")
+cols <- c(cols, "SGLT2i + DPP4i/SU" = "#CC79A7", "SGLT2i + GLP1-RA" = "#56B4E9")
 
 # variables to be shown in tables
-vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd_decile",             # sociodemographic variables
-          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
-          "pretriglyceride", "prehba1c",  
+vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd_decile",            
+          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehba1c",  
           "preegfr", "egfr_cat",
-          "uacr", "albuminuria_unconfirmed", "albuminuria", "albuminuria_cat",
-          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
+          "uacr", "albuminuria_cat",
+          "dstartdate_dm_dur_all", "smoking_status", "predrug_retinopathy",  
+          "predrug_pancreatitis",
           "predrug_af", "predrug_cvd", "predrug_heartfailure", 
-          "hosp_admission_prev_year", "predrug_efi_score", "predrug_efi_cat",
-          "initiation_year",
+          "hosp_admission_prev_year", "predrug_efi_score", "predrug_efi_cat", 
+          "initiation_year", 
           "ncurrtx", "statin", "INS", "ACE_or_ARB"
           
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_4cat", "imd_decile", "egfr_cat", "
-             albuminuria_cat", "albuminuria_unconfirmed", "albuminuria", 
-             "smoking_status", "predrug_hypertension",
+factors <- c("malesex", "ethnicity_4cat", "imd_decile", "egfr_cat", 
+             "albuminuria_cat", 
+             "smoking_status", "predrug_retinopathy", "predrug_pancreatitis",
              "predrug_af", "predrug_cvd", "predrug_heartfailure", 
-             "hosp_admission_prev_year",  "predrug_efi_cat",
+             "hosp_admission_prev_year",  "predrug_efi_cat", 
              "initiation_year",
              "ncurrtx", "statin", "INS", "ACE_or_ARB")
 

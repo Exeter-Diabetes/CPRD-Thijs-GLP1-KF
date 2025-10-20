@@ -83,7 +83,8 @@ comorbids <- c("af",
                "volume_depletion",
                "genital_infection",
                "genital_infection_nonspec",
-               "acutepancreatitis"
+               "acutepancreatitis",
+               "chronicpancreatitis"
 )
 
 

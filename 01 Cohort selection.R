@@ -8,14 +8,14 @@ source("00 Setup.R")
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Raw data/")
-load(paste0("2025-10-01_t2d_1stinstance_a.Rda"))
-load(paste0("2025-10-01_t2d_1stinstance_b.Rda"))
+load(paste0(today, "_t2d_1stinstance_a.Rda"))
+load(paste0(today, "_t2d_1stinstance_b.Rda"))
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
 rm(t2d_1stinstance_b)
 
-load(paste0("2025-10-01_t2d_all_drug_periods.Rda"))
+load(paste0(today, "_t2d_all_drug_periods.Rda"))
 
 # add variable for age and diabetes duration
 t2d_1stinstance <- t2d_1stinstance %>% mutate(
@@ -28,20 +28,14 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/scripts/CPRD-Thi
 source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
-# [1] "Number of subjects on GIPGLP1: 259 (not included due to small numbers)" 
-# [1] "Number of subjects already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2013-2023: 39890" 
-# [1] "Number of drug episodes of already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2014-2023: 49876" 
-# [1] "Number of drug episodes excluded with unknown CKD status: 10716" 
-# [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 92" 
-# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after already taking the other): 427" 
-# [1] "Number of subjects included: 31651" 
-# [1] "Number of drug episodes included: 38643"
-
-
-table(cohort$studydrug1)
-
-# SGLT2 + SU SGLT2 + DPP4 SGLT2 + GLP1 
-# 51390        84820       200390
+# [1] "Number of subjects on GIPGLP1: 259 (not included due to small numbers)"
+# [1] "Number of subjects already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2013-2023: 39888"
+# [1] "Number of drug episodes of already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2013-2023: 49874"
+# [1] "Number of drug episodes excluded with unknown CKD status: 10715"
+# [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 92"
+# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after already taking the other): 427"
+# [1] "Number of subjects included: 31650"
+# [1] "Number of drug episodes included: 38642"
 
 rm(t2d_1stinstance)
 rm(t2d_all_drug_periods)
@@ -83,7 +77,7 @@ cohort <- cohort %>%
          regstartdate, 
          gp_end_date, death_date, 
          gp_end_date,
-         drug_class, contains("studydrug"), dstartdate, dstopdate_class, drugline_all, drug_substance, ncurrtx, ncurrtx2,
+         drug_class, contains("studydrug"), dstartdate, dstopdate_class, drugline_all, drug_substance, ncurrtx,
          DPP4, GLP1, MFN, SGLT2, SU, TZD, INS, 
          dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
          prehdl, preldl, pretriglyceride, pretotalcholesterol, prealt, presbp, predbp, preegfr, preckdstage, 
@@ -102,16 +96,21 @@ cohort <- cohort %>%
          predrug_earliest_ca_channel_blockers, predrug_latest_ca_channel_blockers, 
          predrug_earliest_thiazide_diuretics, predrug_latest_thiazide_diuretics,
          predrug_rheumatoidarthritis, predrug_fh_premature_cvd, 
+         predrug_retinopathy, predrug_acutepancreatitis, predrug_chronicpancreatitis,
          hosp_admission_prev_year, predrug_efi_score,
          statin, ACE, ARB, BB, finerenone, CCB, 
          ThZD, loopD, MRA, 
-         ckd_egfr40_outcome_type, preacr_confirmed, preacr_previous, preacr_previous_date, preacr_next, preacr_next_date
-  )
+         ckd_egfr40_outcome_type, with_hes, preacr_confirmed
+         )
 
-# set SU as reference group
-cohort$studydrug1 <- relevel(as.factor(cohort$studydrug1), ref = "SGLT2 + SU")
-cohort$studydrug2 <- relevel(as.factor(cohort$studydrug2), ref = "SGLT2 + DPP4/SU")
-cohort$studydrug3 <- relevel(as.factor(cohort$studydrug3), ref = "SGLT2 + DPP4/SU")
+# set reference group
+studydrug_vars <- grep("^studydrug", names(cohort), value = TRUE)
+
+# Loop through and relevel
+for (i in seq_along(studydrug_vars)) {
+  ref_level <- if (i == 1) "SGLT2i + SU" else "SGLT2i + DPP4i/SU"
+  cohort[[studydrug_vars[i]]] <- relevel(as.factor(cohort[[studydrug_vars[i]]]), ref = ref_level)
+}
 
 # create variable for year of treatment initiation
 cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
@@ -125,6 +124,14 @@ cohort$initiation_year <- paste0(
   floor((cohort$initiation_year - start_year) / 2) * 2 + start_year, "/", 
   floor((cohort$initiation_year - start_year) / 2) * 2 + start_year + 1
 )
+
+cohort <- cohort %>%
+  mutate(
+    initiation_year = case_when(
+      initiation_year %in% c("2013/2014", "2015/2016") ~ "2013/2016",
+      TRUE ~ initiation_year
+    )
+  )
 
 # ethnicity cannot be calculated in the imputation model due to it being a constant variable
 # for the sake of imputation, we will class missing as a separate category "missing" (5-cat ethnicity: 5; QRISK2: 10)
@@ -143,7 +150,8 @@ cohort <- cohort %>% mutate(
                              ifelse(imd_decile %in% c(5,6), "5/6",
                                     ifelse(imd_decile %in% c(7,8), "7/8",
                                            ifelse(imd_decile %in% c(9,10), "9/10", NA))))),
-  imd_decile = factor(imd_decile)
+  imd_decile = factor(imd_decile),
+  qrisk2_smoking_cat = factor(qrisk2_smoking_cat)
 )
 
 # variable preacr_confirmed indicates whether a person had their presence of albuminuria (3mg/mmol) confirmed on 2 readings
@@ -155,8 +163,8 @@ cohort <- cohort %>% mutate(preacr_confirmed = ifelse(is.na(preacr_confirmed), F
 # save dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 save(cohort, file=paste0(today, "_t2d_glp1_cohort_data.Rda"))
-#load(paste0(today, "_t2d_glp1_cohort_data.Rda"))
 ########################2 MULTIPLE IMPUTATION####################################################################
+#load(paste0(today, "_t2d_glp1_cohort_data.Rda"))
 
 #dry run
 ini <- mice(cohort, seed = 123, maxit = 0)
@@ -170,7 +178,7 @@ meth <- ini$meth
 meth[c(
   "death_date", 
   "preacr", "last_sglt2_stop", "last_glp1_stop", "preckdstage", 
-  "dstopdate_class",
+  "dstopdate_class", "timeprevcombo_class", "prehdl", "preldl", "pretriglyceride", "prealt", "predbp",
   "predrug_earliest_ace_inhibitors", 
        "predrug_earliest_arb",
        "predrug_earliest_beta_blockers", "predrug_earliest_ca_channel_blockers",
@@ -179,11 +187,10 @@ meth[c(
        "predrug_latest_beta_blockers", "predrug_latest_ca_channel_blockers",
        "ethnicity_qrisk2", 
        "predrug_earliest_thiazide_diuretics", "predrug_latest_thiazide_diuretics",
-       "ckd_egfr40_outcome_type", "preacr_confirmed", 
-       "preacr_previous", "preacr_previous_date", "preacr_next", "preacr_next_date")] <- ""
+       "ckd_egfr40_outcome_type", "preacr_confirmed")] <- ""
 
 # # smoking status and deprivation missing at present
-# meth[c("qrisk2_smoking_cat", "imd_decile")] <- "polyreg"
+meth[c("qrisk2_smoking_cat", "imd_decile")] <- "polyreg"
 
 meth[c("preweight", "height")] <- "pmm"
 
@@ -197,7 +204,7 @@ inlist <- c("malesex",  "dstartdate_age",  "imd_decile",  "tds_2011",           
             "dstartdate_dm_dur_all", "prebmi", "pretotalcholesterol",            # laboratory and vital sign measurements
             "presbp", "preegfr", "uacr", 
             "qrisk2_smoking_cat", 
-            "ckd_egfr40_censvar",
+            "ckd_egfr40_censvar", "with_hes",
             "death_censvar"     # outcome variables
 )
 
@@ -211,8 +218,7 @@ outlist1 <- c("patid", "gp_end_date", "drug_class", "drugline_all", "ncurrtx",
               "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
               "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_4cat",
               "last_glp1_stop", "last_sglt2_stop", "dstopdate_class",
-              "ckd_egfr40_outcome_type", "preacr_confirmed", "preacr_previous", 
-              "preacr_previous_date", "preacr_next", "preacr_next_date", 
+              "ckd_egfr40_outcome_type", "preacr_confirmed",
               names(cohort)[apply(cohort, 2, function(x) any(is.na(x))) & meth == ""]) # any variables that have missing in them that are not being imputed
 
 #list variables with outflux <0.5 
@@ -243,8 +249,25 @@ post["prehba1c"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(42, 97))"
 post["uacr"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(0.6, 56.5))"
 post["presbp"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(80, 180))"
 
-n.imp <- 10
 
+# save % missing and imputation methods per variable imputed:
+vars_to_impute <- rownames(pred)[apply(pred, 1, function(x) any(x != 0))]
+missing_summary <- data.frame(
+  variable = vars_to_impute,
+  n_missing = sapply(cohort[vars_to_impute], function(x) sum(is.na(x))),
+  n_total = nrow(cohort)
+) %>%
+  mutate(
+    pct_missing = round(100 * n_missing / n_total, 1)
+  ) %>%
+  arrange(desc(pct_missing))
+missing_summary$method <- meth[missing_summary$variable]
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+write.csv2(missing_summary, paste0(today, "_missing_data_summary.csv"), row.names = F)
+
+
+## impute data
 imp <- mice(data = cohort, 
             meth = meth, 
             pred = pred, 
@@ -428,8 +451,7 @@ temp <- temp %>% mutate(
   obesity = ifelse(prebmi < 30, F, T),
   smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
   smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
-  albuminuria_unconfirmed = ifelse(uacr < 3, F, T),
-  albuminuria = preacr_confirmed,        # 
+  albuminuria = ifelse(uacr < 3, F, T),
   ACE_or_ARB = ifelse(temp$ACE + temp$ARB > 0, T, F),
   ncurrtx2 = ncurrtx,
   ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx == 3, "3.", "4+"))),
@@ -439,7 +461,8 @@ temp <- temp %>% mutate(
     predrug_efi_score >= 0.12 & predrug_efi_score < 0.24 ~ "mild",
     predrug_efi_score >= 0.24 & predrug_efi_score < 0.36 ~ "moderate",
     predrug_efi_score >= 0.36 ~ "severe"
-  )
+  ),
+  predrug_pancreatitis = ifelse(predrug_acutepancreatitis == T | predrug_chronicpancreatitis == T, T, F)
 )
 
 
@@ -447,19 +470,26 @@ q <- temp %>% nrow()
 p <- temp %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
   group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup() %>% nrow()
 print(paste0("Number of duplicate drug episodes removed ", (q-p)/n.imp))
+# [1] "Number of duplicate drug episodes removed 4786"
+
 print(paste0("Number of drug episodes in study population ", p/n.imp))
+# [1] "Number of drug episodes in study population 31797"
+
 rm(p)
 q <- temp %>% .$patid %>% unique() %>% length()
-print(paste0("Number of subjects in study population ", q))
+# print(paste0("Number of subjects in study population ", q))
+
 
 studydrug_var = paste0("studydrug", main)
 # save imputed dataset so this can be used in the subsequent scripts
 temp <- temp %>%
        mutate(across(starts_with("studydrug"), as.factor),
-              egfr_cat = ifelse(preegfr < 45, "20-45", ifelse(preegfr < 60, "45-60", "≥60")),
+              egfr_cat = ifelse(preegfr < 60, "<60", "≥60"),
               egfr_cat = factor(egfr_cat),
-              albuminuria_cat = ifelse(uacr >30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
-              albuminuria_cat = factor(albuminuria_cat)) %>%
+              albuminuria_cat = ifelse(uacr >=30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
+              albuminuria_cat = factor(albuminuria_cat),
+              albuminuria_cat2 = ifelse(uacr >=3, "≥3", "<3"),
+              albuminuria_cat2 = factor(albuminuria_cat2)) %>%
   group_by(.imp, patid, !!sym(studydrug_var)) %>% 
   arrange(dstartdate) %>% 
   filter(!duplicated(!!sym(studydrug_var))) %>% 
@@ -483,7 +513,7 @@ for (m in 1:n.studydrug.vars) {
   
   tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, smd = T, printToggle = T)
   
-  ## Save to a CSV file
+  ## save
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   write.csv2(tabforprint, file = paste0(today, "_baseline_table_studydrug", m, ".csv"))
   
@@ -492,31 +522,68 @@ for (m in 1:n.studydrug.vars) {
 
 # events rates (sum of events divided by sum of person-years) by studydrug
 
+# empty data frame
+event_rates <- data.frame(
+  studydrug_var = character(),
+  drug_level = character(),
+  outcome = character(),
+  event_rate_1000yrs = numeric(),
+  stringsAsFactors = F
+)
+
 for (m in 1:n.studydrug.vars) {  
   
-  studydrug_var = paste0("studydrug", m)
-  
+  studydrug_var <- paste0("studydrug", m)
   print(paste0("Event rates for ", studydrug_var))
   
+  temp_all <- temp
+  
+  for (k in outcomes) {
     
-    for (k in outcomes) {
-      
-      if (m == 1) {
-        k = paste0(k, "_sens1")
-      }
-      
-      censvar_var=paste0(k, "_censvar")
-      censtime_var=paste0(k, "_censtime_yrs")  
-      
-      for (p in levels(temp[[studydrug_var]])) {
-        events <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censvar_var) %>% sum()
-        pyears <- temp %>% filter(.imp !=0 & !!sym(studydrug_var) == p) %>% select(censtime_var) %>% sum()
-        print(paste0(p, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
-        rm(events)
-        rm(pyears)
-      }
-      rm(censvar_var)
-      rm(censtime_var)
+    temp <- temp_all
+    
+    if (k == "retinopathy") {
+      temp <- temp_all %>% filter(predrug_retinopathy == F)
     }
     
+    if (k == "acutepancreatitis") {
+      temp <- temp_all %>% filter(predrug_pancreatitis == F)
+    }
+    
+    if (m == 1) {
+      k <- paste0(k, "_sens1")
+    }
+    
+    censvar_var  <- paste0(k, "_censvar")
+    censtime_var <- paste0(k, "_censtime_yrs")  
+    
+    # iterate over each treatment group
+    for (n in levels(temp[[studydrug_var]])) {
+      
+      temp_sub <- temp %>% filter(.imp != 0 & !!sym(studydrug_var) == n)
+      
+      events  <- sum(temp_sub[[censvar_var]], na.rm = T)
+      pyears  <- sum(temp_sub[[censtime_var]], na.rm = T)
+      
+      event_1000yrs <- round(events / pyears * 1000, 1)
+      
+      # Store result instead of printing
+      event_rates <- rbind(
+        event_rates,
+        data.frame(
+          studydrug_var = studydrug_var,
+          drug_level = n,
+          outcome = k,
+          event_rate_1000yrs = event_1000yrs,
+          stringsAsFactors = F
+        )
+      )
+    }
+  }
 }
+
+# save event rates 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+write.csv2(event_rates, paste0(today, "_event_rates_table.csv"), row.names = FALSE)
+
+

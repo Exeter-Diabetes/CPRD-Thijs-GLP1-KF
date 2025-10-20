@@ -1,9 +1,9 @@
 
 # Produce survival variables for all endpoints (including for sensitivity analysis)
-## All censored at 5 years post drug start (3 years for 'ckd_egfr40') / end of GP records / death / starting a different diabetes med which affects CV risk (GLP1 + SGLT2), and also drug stop date + 6 months for per-protocol analysis
+## All censored at 3 years post drug start (5 years for sensitivity analysis) / end of GP records / death / starting a GLP1 if not in the treatment group, and also drug stop date + 6 months for per-protocol analysis
 
 # Main analysis:
-## 'ckd_egfr50': decline in eGFR of >=50% from baseline or onset of CKD stage 5 OR death from renal causes
+## 'ckd_egfr40': decline in eGFR of >=40% from baseline or onset of CKD stage 5 OR death from kidney-related causes
 
 # Sensitivity analysis:
 ## '{outcome}_sens': all of main analysis but with different groupings of drugs
@@ -17,11 +17,14 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   
   main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
-
+  
   
   cohort <- cohort_dataset %>%
     
-    mutate(cens_itt_5_yrs=pmin(dstartdate+(365.25*5),
+    mutate(gp_end_date=pmax(gp_end_date, as.Date("2023-03-31"), na.rm=TRUE),
+           
+           
+           cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
                                hes_end_date,
                                gp_end_date,
                                death_date,
@@ -29,7 +32,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                na.rm=TRUE),
            
            
-           cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
+           cens_itt_5_yrs=pmin(dstartdate+(365.25*5),
                                hes_end_date,
                                gp_end_date,
                                death_date,
@@ -46,15 +49,14 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                  if_else(studydrug1=="SU", next_dpp4_start, as.Date("2050-01-01")),
                                  #    dstopdate_class+183,
                                  na.rm=TRUE),
-
-           # cens_sens3_3_yrs=pmin(dstartdate+(365.25*3),
-           #                       hes_end_date,
-           #                       gp_end_date,
-           #                       death_date,
-           #                       if_else(studydrug3!="GLP1 with direct kidney outcome evidence", next_other_glp1_start, as.Date("2050-01-01")),
-           #                       if_else(studydrug3!="Other GLP1", next_glp1_with_direct_kidney_outcome_evidence_start, as.Date("2050-01-01")),
-           #                       #    dstopdate_class+183,
-           #                       na.rm=TRUE),
+           
+           cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
+                                 hes_end_date,
+                                 gp_end_date,
+                                 death_date,
+                                 if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+                                 dstopdate_class+183,
+                                 na.rm=TRUE),
            
            
            
@@ -94,7 +96,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                           na.rm=TRUE),
            
            retinopathy_outcome=pmin(postdrug_first_retinopathy,
-                                          na.rm=TRUE),
+                                    na.rm=TRUE),
            
            lowerlimbfracture_outcome=pmin(postdrug_first_lowerlimbfracture,
                                           na.rm=TRUE),
@@ -144,38 +146,38 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   # Add survival variables for outcomes for sensitivity analyses
   
   else {
-
-    # sensitivity analyses
-    sensitivity_outcomes <- paste0(main_outcomes, "_sens1")
-
-
-    for (i in sensitivity_outcomes) {
-
-      sens = substr(i, nchar(i)-4, nchar(i))
-      censoring_var_im=paste0("cens_", sens, "_3_yrs")
-      censdate_var=paste0(i, "_censdate")
-      censvar_var=paste0(i, "_censvar")
-      censtime_var=paste0(i, "_censtime_yrs")
-
-
-      outcome_var=paste0(substr(i, 1,  nchar(i)-6), "_outcome")
-
-
-      cohort <- cohort %>%
-        mutate({{censdate_var}}:=pmin(!!sym(outcome_var), !!sym(censoring_var_im), na.rm=TRUE))
-
-
-
-      cohort <- cohort %>%
-        mutate({{censvar_var}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var)==!!sym(outcome_var), 1, 0),
-               {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25)
-
+    
+    for (q in c("sens1", "pp")) {
+      # sensitivity analyses
+      sensitivity_outcomes <- paste0(main_outcomes, "_", q)
+      
+      
+      for (i in sensitivity_outcomes) {
+        
+        censoring_var_im=paste0("cens_", q, "_3_yrs")
+        censdate_var=paste0(i, "_censdate")
+        censvar_var=paste0(i, "_censvar")
+        censtime_var=paste0(i, "_censtime_yrs")
+        
+        
+        outcome_var=paste0(substr(i, 1,  nchar(i)-(nchar(q) + 1)), "_outcome")
+        
+        
+        cohort <- cohort %>%
+          mutate({{censdate_var}}:=pmin(!!sym(outcome_var), !!sym(censoring_var_im), na.rm=TRUE))
+        
+        
+        
+        cohort <- cohort %>%
+          mutate({{censvar_var}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var)==!!sym(outcome_var), 1, 0),
+                 {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25)
+        
+      }
+      
+      if (main_only==FALSE) {
+        message(paste("survival variables for", paste(main_outcomes, collapse=", "), ",", paste(unlist(sensitivity_outcomes), collapse=", "), "added"))
+      }
     }
-
-    if (main_only==FALSE) {
-      message(paste("survival variables for", paste(main_outcomes, collapse=", "), ",", paste(unlist(sensitivity_outcomes), collapse=", "), "added"))
-    }
-
   }
   
   return(cohort) 
