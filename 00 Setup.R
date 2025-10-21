@@ -36,7 +36,7 @@ rm(list=ls())
 set.seed(4072)
 
 # set number of imputations
-n.imp <- 50
+n.imp <- 100
 
 # set number of quantiles
 n.quantiles <- 10

@@ -28,12 +28,12 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/scripts/CPRD-Thi
 source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
-# [1] "Number of subjects on GIPGLP1: 259 (not included due to small numbers)"
-# [1] "Number of subjects already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2013-2023: 39888"
-# [1] "Number of drug episodes of already on SGLT2 starting an GLP1 or comparator drugs DPP4/SU between 2013-2023: 49874"
+# [1] "Number of subjects on GIP-GLP1-RA: 259 (not included due to small numbers)"
+# [1] "Number of subjects already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 39888"
+# [1] "Number of drug episodes of already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 49874"
 # [1] "Number of drug episodes excluded with unknown CKD status: 10715"
 # [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 92"
-# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after already taking the other): 427"
+# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4i/SU after already taking the other): 427"
 # [1] "Number of subjects included: 31650"
 # [1] "Number of drug episodes included: 38642"
 

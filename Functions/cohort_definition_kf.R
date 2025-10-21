@@ -71,22 +71,24 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
                           "SGLT2i + GLP1-RA", ifelse(studydrug1 == "DPP4i", "SGLT2i + DPP4i", "SGLT2i + SU")),
       studydrug2 = ifelse(studydrug1 != "SGLT2i + GLP1-RA", "SGLT2i + DPP4i/SU", "SGLT2i + GLP1-RA"),
       studydrug3 = ifelse(studydrug2 == "SGLT2i + GLP1-RA",
-                          ifelse(grepl("semaglutide", drug_substance, ignore.case = T) & !grepl("oral", drug_substance, ignore.case = T) |    # sc semaglutide
+                          ifelse(grepl("semaglutide", drug_substance, ignore.case = T) |#& !grepl("oral", drug_substance, ignore.case = T) |    # sc semaglutide
                                    grepl("dulaglutide", drug_substance, ignore.case = T) |                                                    # dulaglutide
                                    grepl("efpeglenatide", drug_substance, ignore.case = T),                                                   # efpeglenatide
                                  "GLP1-RA with direct kidney outcome evidence", "Other GLP1-RA"), studydrug2),
       studydrug4 = ifelse(studydrug2 == "SGLT2i + GLP1-RA",
                           ifelse(grepl("semaglutide", drug_substance, ignore.case = T), 
-                                 "Semaglutide", "Other GLP1-RA"), studydrug2)
+                                 "Semaglutide", 
+                                 ifelse(grepl("dulaglutide", drug_substance, ignore.case = T),
+                                        "Dulaglutide", "Other GLP1-RA")), studydrug2)
 
     )
   
   
   q <- cohort %>% .$patid %>% unique() %>% length()
-  print(paste0("Number of subjects already on SGLT2i starting an GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: ", q))
+  print(paste0("Number of subjects already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: ", q))
   
   q <- cohort %>% nrow()
-  print(paste0("Number of drug episodes of already on SGLT2i starting an GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: ", q))
+  print(paste0("Number of drug episodes of already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: ", q))
   
   
   

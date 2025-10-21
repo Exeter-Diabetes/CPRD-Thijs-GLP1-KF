@@ -379,7 +379,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
   
   # Events/subjects in middle-left
   # Treated n/N
-  geom_text(aes(x = 0.2, label = treated_nN,
+  geom_text(aes(x = 0.185, label = treated_nN,
                 fontface = ifelse(is.na(HR), "bold", "plain")),
             hjust = 0) +
   
@@ -534,7 +534,7 @@ heading_rows <- plot_df %>%
     condition_label = paste0(
       factor_label, 
       " (p=", 
-      round(factor_hrs$p_value_interaction[match(factor_label, recode(
+      sprintf("%.2f", round(factor_hrs$p_value_interaction[match(factor_label, recode(
         factor_hrs$factor,
         "malesex" = "Sex",
         "white_ethnicity" = "Ethnicity",
@@ -543,7 +543,7 @@ heading_rows <- plot_df %>%
         "predrug_cvd" = "Atherosclerotic CVD",
         "predrug_heartfailure" = "Heart failure",
         "age_cat" = "Age"
-      ))], 2), 
+      ))], 2)), 
       ")"
     )
   )
@@ -597,7 +597,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
             hjust = 0) +
   
   # n/N columns (only populated for header and subgroup rows)
-  geom_text(aes(x = 0.016, label = treated_nN,
+  geom_text(aes(x = 0.16, label = treated_nN,
                 fontface = ifelse(is.na(HR) & string != "", "bold", "plain")),
             hjust = 0) +
   geom_text(aes(x = 0.27, label = ref_nN,
@@ -846,6 +846,7 @@ for (m in 3:4) {
     temp_k <- temp %>%
       mutate(drug = factor(drug, levels = c("SGLT2i + DPP4i/SU",
                                             "Semaglutide",
+                                            "Dulaglutide",
                                             "Other GLP1-RA")))
   } else {
     temp_k <- temp
@@ -946,12 +947,12 @@ for (m in 3:4) {
     
     # Events/subjects in middle-left
     # Treated n/N
-    geom_text(aes(x = 0.8, label = treated_nN,
+    geom_text(aes(x = 0.085, label = treated_nN,
                   fontface = ifelse(is.na(HR), "bold", "plain")),
               hjust = 0) +
     
     # Reference n/N
-    geom_text(aes(x = 0.20, label = ref_nN,
+    geom_text(aes(x = 0.19, label = ref_nN,
                   fontface = ifelse(is.na(HR), "bold", "plain")),
               hjust = 0) +
     
@@ -962,7 +963,7 @@ for (m in 3:4) {
               hjust = 0) +
     
     # text to indicate which drug to favour
-    annotate("text", x = .65,
+    annotate("text", x = .6,
              y = max(plot_df$y_order), fontface = "italic",
              label = paste0("Favours ", drug_of_interest)) +
     
@@ -1122,7 +1123,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
   
   # Events/subjects in middle-left
   # Treated n/N
-  geom_text(aes(x = 0.185, label = treated_nN,
+  geom_text(aes(x = 0.175, label = treated_nN,
                 fontface = ifelse(is.na(HR), "bold", "plain")),
             hjust = 0) +
   
@@ -1285,7 +1286,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
   
   # Events/subjects in middle-left
   # Treated n/N
-  geom_text(aes(x = 0.185, label = treated_nN,
+  geom_text(aes(x = 0.175, label = treated_nN,
                 fontface = ifelse(is.na(HR), "bold", "plain")),
             hjust = 0) +
   
@@ -1484,7 +1485,7 @@ for (k in outcomes_per_drugclass[1]) {
     nu <- (m - 1) * (1 + 1 / R)^2
     p_value_interaction <- 1 - pf(Fstat, df1 = df_interaction, df2 = nu)
     
-    print(p_value_interaction)
+    print(paste0("P for interaction with ", q, ": ", p_value_interaction))
     assign(paste0("p_value_interaction_", q), p_value_interaction)
     
     # plot
