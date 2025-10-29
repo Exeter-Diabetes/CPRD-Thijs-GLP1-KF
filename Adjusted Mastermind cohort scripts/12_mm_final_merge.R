@@ -199,7 +199,7 @@ t2d_1stinstance %>% distinct(patid) %>% count()
 
 ############################################################################################
 
-# Make dataset of all drug starts so that can see whether people later initiate SGLT2i/GLP1 etc.
+# Make dataset of all drug starts so that can see whether people later initiate SGLT2i/GLP1-RA etc.
 ## Not cleaned to remove those close to reg start / after death
 
 ## Just T2s
