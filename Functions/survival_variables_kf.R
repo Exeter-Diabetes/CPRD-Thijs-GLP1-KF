@@ -58,9 +58,14 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
            
            
            
+           # if eGFR measurement showing a 40% decline is a final measurement, use this
+           egfr40_decline_date = ifelse(
+             is.na(cohort$post_egfr_40_decline_date_next_egfr) | is.null(cohort$post_egfr_40_decline_date_next_egfr),
+             cohort$egfr_40_decline_date,
+             cohort$egfr_40_decline_date_confirmed
+           ),
            
-           
-           ckd_egfr40_outcome=pmin(egfr_40_decline_date,
+           ckd_egfr40_outcome=pmin(egfr40_decline_date,
                                    postckdstage5date,
                                    kf_death_date_any_cause,
                                    na.rm=TRUE),
