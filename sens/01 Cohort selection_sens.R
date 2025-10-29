@@ -1,6 +1,9 @@
+## SENSITIVITY ANALYSIS INCLUDING INDIVIDUALS WITH MISSING BASELINE UACR (WITH IMPUTED VALUES)
+
 ########################0 SETUP####################################################################
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
-source("00 Setup.R")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/sens/")
+source("00 Setup_sens.R")
+
 ########################1 COHORT SELECTION####################################################################
 
 # 1 Cohort selection and variable setup
@@ -8,14 +11,14 @@ source("00 Setup.R")
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Raw data/")
-load(paste0(today, "_t2d_1stinstance_a.Rda"))
-load(paste0(today, "_t2d_1stinstance_b.Rda"))
+load(paste0(other_day, "_t2d_1stinstance_a.Rda"))
+load(paste0(other_day, "_t2d_1stinstance_b.Rda"))
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
 rm(t2d_1stinstance_b)
 
-load(paste0(today, "_t2d_all_drug_periods.Rda"))
+load(paste0(other_day, "_t2d_all_drug_periods.Rda"))
 
 # add variable for age and diabetes duration
 t2d_1stinstance <- t2d_1stinstance %>% mutate(
@@ -24,25 +27,25 @@ t2d_1stinstance <- t2d_1stinstance %>% mutate(
   malesex=ifelse(gender==1, T, F),
 )
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/scripts/CPRD-Thijs-GLP1-KF/Functions/")
-source("cohort_definition_kf.R")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/sens/")
+source("cohort_definition_kf_sens.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
-# [1] "Number of subjects on GIP-GLP1-RA: 259 (not included due to small numbers)"
-# [1] "Number of subjects already on SGLT2i initiating a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 39888"
-# [1] "Number of drug episodes of already on SGLT2i initiating a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 49874"
-# [1] "Number of drug episodes excluded with unknown eGFR or uACR: 10715"
-# [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 92"
-# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4i/SU after already taking the other): 427"
-# [1] "Number of subjects included: 31650"
-# [1] "Number of drug episodes included: 38642"
+# [1] "Number of subjects on GIPGLP1: 259 (not included due to small numbers)"
+# [1] "Number of subjects already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 39888"
+# [1] "Number of drug episodes of already on SGLT2i starting a GLP1-RA or comparator drugs DPP4i/SU between 2013-2023: 49874"
+# [1] "Number of drug episodes excluded with unknown eGFR: 816"
+# [1] "Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: 132"
+# [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4i/SU after already taking the other): 543"
+# [1] "Number of subjects included: 39071"
+# [1] "Number of drug episodes included: 48387"
 
 rm(t2d_1stinstance)
 rm(t2d_all_drug_periods)
 gc()
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
-
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/scripts/CPRD-Thijs-GLP1-KF/Functions/")
 source("survival_variables_kf.R")
 
 cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
@@ -102,7 +105,7 @@ cohort <- cohort %>%
          ThZD, loopD, MRA, 
          ckd_egfr40_outcome_type, with_hes, preacr_confirmed,
          weightresp6m, weightresp12m, preegfr_count_12m, egfr_count_12m,
-         ) %>%
+  ) %>%
   mutate(preegfr_count_12m = coalesce(preegfr_count_12m, 0),
          egfr_count_12m = coalesce(egfr_count_12m, 0))
 
@@ -183,15 +186,15 @@ meth[c(
   "preacr", "last_sglt2_stop", "last_glp1_stop", "preckdstage", 
   "dstopdate_class", "timeprevcombo_class", "prehdl", "preldl", "pretriglyceride", "prealt", "predbp",
   "predrug_earliest_ace_inhibitors", 
-       "predrug_earliest_arb",
-       "predrug_earliest_beta_blockers", "predrug_earliest_ca_channel_blockers",
-       "predrug_latest_ace_inhibitors", 
-       "predrug_latest_arb",
-       "predrug_latest_beta_blockers", "predrug_latest_ca_channel_blockers",
-       "ethnicity_qrisk2", 
-       "predrug_earliest_thiazide_diuretics", "predrug_latest_thiazide_diuretics",
-       "ckd_egfr40_outcome_type", "preacr_confirmed",
-       "weightresp6m", "weightresp12m")] <- ""
+  "predrug_earliest_arb",
+  "predrug_earliest_beta_blockers", "predrug_earliest_ca_channel_blockers",
+  "predrug_latest_ace_inhibitors", 
+  "predrug_latest_arb",
+  "predrug_latest_beta_blockers", "predrug_latest_ca_channel_blockers",
+  "ethnicity_qrisk2", 
+  "predrug_earliest_thiazide_diuretics", "predrug_latest_thiazide_diuretics",
+  "ckd_egfr40_outcome_type", "preacr_confirmed",
+  "weightresp6m", "weightresp12m")] <- ""
 
 # # smoking status and deprivation missing at present
 meth[c("qrisk2_smoking_cat", "imd_decile")] <- "polyreg"
@@ -281,8 +284,8 @@ imp <- mice(data = cohort,
             seed = 123)
 
 #check imputed vs original values
-density_plot <- densityplot(x = imp, data = ~ imd_decile + prebmi + presbp + pretotalcholesterol +
-                                  prehba1c + dstartdate_dm_dur_all + qrisk2_smoking_cat + hosp_admission_prev_year)
+density_plot <- densityplot(x = imp, data = ~ imd_decile + prebmi + presbp + pretotalcholesterol + uacr +
+                              prehba1c + dstartdate_dm_dur_all + qrisk2_smoking_cat + hosp_admission_prev_year)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 tiff(paste0(today, "_mice_density_plot.tiff"), width=7.5, height=6, units = "in", res=800)
@@ -320,7 +323,7 @@ temp <- temp %>% filter(!.imp == 0) %>%
          ever_smoker=ifelse(!qrisk2_smoking_cat == 0, 1L, 0L),
          current_smoker=ifelse(qrisk2_smoking_cat==2 | qrisk2_smoking_cat == 3 | qrisk2_smoking_cat == 4, 1L, 0L),
          ex_smoker=ifelse(qrisk2_smoking_cat==1, 1L, 0L),
-
+         
          latest_bp_med=pmax(
            ifelse(is.na(predrug_latest_ace_inhibitors),as.Date("1900-01-01"),predrug_latest_ace_inhibitors),
            ifelse(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
@@ -336,7 +339,7 @@ temp <- temp %>% filter(!.imp == 0) %>%
          
          chd=predrug_myocardialinfarction==1 | predrug_revasc==1,
          
-         )
+  )
 
 
 
@@ -504,5 +507,4 @@ for (m in 1:n.studydrug.vars) {
 # save event rates 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 write.csv2(event_rates, paste0(today, "_event_rates_table.csv"), row.names = FALSE)
-
 

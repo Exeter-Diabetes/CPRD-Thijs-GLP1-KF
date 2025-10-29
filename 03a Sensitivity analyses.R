@@ -2,6 +2,9 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
 source("00 Setup.R")
 
+outcomes_sensitivity = outcomes[1]
+
+analysis_approaches = "ow"
 ############################1 CALCULATE WEIGHTS AND HAZARD RATIOS################################################################
 
 # 1 calculate weights
@@ -80,30 +83,11 @@ for (r in 1:5) {
     # calculate overlap weights
     w.overlap <- SumStat(ps.formula=ps.formula,
                          data = temp[temp$.imp == i,],
-                         weight = c("IPW", "overlap"))
+                         weight = c("overlap"))
     
-    # truncate IPTW at 5th and 95th percentile
-    w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[1],
-                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[1],
-                                       ifelse(
-                                         w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[2],
-                                         quantile(w.overlap$ps.weights$IPW, probs = c(0.05, 0.95))[2],
-                                         w.overlap$ps.weights$IPW
-                                       ))
-    
-    # truncate overlap weights at 1st and 99th percentile
-    w.overlap$ps.weights$overlap <- ifelse(w.overlap$ps.weights$overlap < quantile(w.overlap$ps.weights$overlap, probs = c(0.01, 0.99))[1],
-                                           quantile(w.overlap$ps.weights$overlap, probs = c(0.01, 0.99))[1],
-                                           ifelse(
-                                             w.overlap$ps.weights$overlap > quantile(w.overlap$ps.weights$overlap, probs = c(0.01, 0.99))[2],
-                                             quantile(w.overlap$ps.weights$overlap, probs = c(0.01, 0.99))[2],
-                                             w.overlap$ps.weights$overlap
-                                           ))
-    
-    
+
     ## Add weights to data frame
     weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
-    temp[temp$.imp == i,][[paste0("IPTW", main, collapse = "")]]  <- weights$IPW
     temp[temp$.imp == i,][[paste0("overlap", main, collapse = "")]] <- weights$overlap
     
     rm(w.overlap)
@@ -123,8 +107,7 @@ for (r in 1:5) {
     filter(!duplicated(!!sym(studydrug_var))) %>% 
     ungroup()
   
-  outcomes_sensitivity = "ckd_egfr40"
-  
+
   if (r == 1) {
     print(paste0("Remove multiple episodes per subject"))
     temp <- temp %>%
@@ -166,7 +149,7 @@ for (r in 1:5) {
     print(paste0("Remove subjects without linkage to secondary care data"))
     temp <- temp %>% filter(with_hes == 1)
     
-    outcomes_sensitivity <- c(outcomes_sensitivity, "mace", "hf")
+    outcomes_sensitivity <- outcomes_per_drugclass
   }
   
   temp_all <- temp %>% filter(.imp != 0) 
@@ -272,7 +255,7 @@ for (r in 1:5) {
       
       for (n in drug_levels[-1]) {
         for (c in c("COEFS", "SE")) {
-          for (d in c("unadj", "adj", "ow", "iptw")) {
+          for (d in c(analysis_approaches)) {
             assign(paste0(c, ".", n, ".", d), rep(NA, n.imp))
             
           }
@@ -283,22 +266,16 @@ for (r in 1:5) {
       for (i in 1:n.imp) {
         print(paste0("Analyses in imputed dataset number ", i))
         
-        #unadjusted analyses first
-        fit.unadj <- coxph(f2, cohort[cohort$.imp == i,])
-        #adjusted analyses
-        fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])      
         #overlap weighted analyses
         fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
-        #inverse probability of treatment weighted analyses
-        fit.iptw <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
-        
+ 
         #store coefficients and standard errors from this model
         for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
           
           drug_name <- drug_levels[n+1]
           
           # for every analysis approach, extract coefficients
-          for (d in c("unadj", "adj", "ow", "iptw")) {
+          for (d in c(analysis_approaches)) {
             
             # get model for this analysis approach
             model <- get(paste0("fit.", d))
@@ -329,7 +306,7 @@ for (r in 1:5) {
         drug_name <- drug_levels[n]
         
         
-        for (d in c("unadj", "adj", "ow", "iptw")) {
+        for (d in c(analysis_approaches)) {
           if (n == 1) {
             # if drug level is reference category then HR will be NA
             pooled_hr <- c(NA, NA, NA)

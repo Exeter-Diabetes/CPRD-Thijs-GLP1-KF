@@ -27,8 +27,8 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   cohort <- cohort %>% filter(
     (  drug_class=="GLP1" | 
-       drug_class=="DPP4" | 
-       drug_class=="SU") &
+         drug_class=="DPP4" | 
+         drug_class=="SU") &
       dstartdate>=as.Date("2013-03-31") &
       dstartdate<=as.Date("2023-03-31")
   ) %>%
@@ -68,14 +68,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       ## create distinct level for dulaglutide / sc semaglutide semaglutide vs other GLP1-RAs (studydrug3)
       studydrug1 = ifelse(studydrug1 == "GLP1-RA",
                           "SGLT2i + GLP1-RA", ifelse(studydrug1 == "DPP4i", "SGLT2i + DPP4i", "SGLT2i + SU")),
-      studydrug2 = ifelse(studydrug1 != "SGLT2i + GLP1-RA", "SGLT2i + DPP4i/SU", "SGLT2i + GLP1-RA"),
-      studydrug3 = ifelse(studydrug2 == "SGLT2i + GLP1-RA",
-                          ifelse(grepl("semaglutide", drug_substance, ignore.case = T) & !grepl("oral", drug_substance, ignore.case = T) |    # sc semaglutide
-                                   grepl("dulaglutide", drug_substance, ignore.case = T) |                                                    # dulaglutide
-                                   grepl("efpeglenatide", drug_substance, ignore.case = T),                                                   # efpeglenatide
-                                 "GLP1-RA with direct kidney outcome evidence", "Other GLP1-RA"), studydrug2)
-
-    )
+      studydrug2 = ifelse(studydrug1 != "SGLT2i + GLP1-RA", "SGLT2i + DPP4i/SU", "SGLT2i + GLP1-RA"))
   
   
   q <- cohort %>% .$patid %>% unique() %>% length()
@@ -95,11 +88,11 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   q <- cohort %>% filter(is.na(preckdstage) | is.na(preegfr) | is.na(uacr)) %>% nrow()
   
-  print(paste0("Number of drug episodes excluded with unknown eGFR/uACR: ", q))
+  print(paste0("Number of drug episodes excluded with unknown eGFR: ", q))
   
   cohort <- cohort %>%
     filter(
-      !(is.na(preckdstage) & is.na(preegfr) | is.na(uacr))
+      !(is.na(preckdstage) & is.na(preegfr))
     )
   
   # h) Remove if ESKD before index date or eGFR <60
@@ -116,7 +109,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   #    or episodes of taking DPP4i following episode of SU and vice versa
   q <- cohort %>% filter(
     episode_order %in% c("last", "other") & (
-        (drug_class == "DPP4" & SU == 1) |
+      (drug_class == "DPP4" & SU == 1) |
         (drug_class == "SU" & DPP4 == 1))
   ) %>% nrow()
   
@@ -125,7 +118,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   cohort <- cohort %>%
     filter(!(
       episode_order %in% c("last", "other") & (
-          (drug_class == "DPP4" & SU == 1) |
+        (drug_class == "DPP4" & SU == 1) |
           (drug_class == "SU" & DPP4 == 1))
     )
     )
@@ -144,7 +137,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   #
   ### Also get latest GLP1-RA and SGLT2i stop dates before drug start for DPP4i/SU arms 
-
+  
   later_sglt2 <- cohort %>%
     select(patid, dstartdate) %>%
     inner_join((all_drug_periods_dataset %>%

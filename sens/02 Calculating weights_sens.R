@@ -1,6 +1,9 @@
+## SENSITIVITY ANALYSIS INCLUDING INDIVIDUALS WITH MISSING BASELINE UACR (WITH IMPUTED VALUES)
+
+
 ########################0 SETUP####################################################################
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
-source("00 Setup.R")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/sens/")
+source("00 Setup_sens.R")
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
@@ -12,20 +15,18 @@ load(paste0(today, "_t2d_glp1_imputed_data.Rda"))
 
 # as the data have been imputed, take each imputed dataset, calculate weights in them, then stack them again at the end
 
-# weight variables for each studydrug variable
-n.studydrug.vars <- sum(grepl("studydrug", colnames(temp)))
 
 # for computational speed, keep minimal dataset only for each studydrug variable
 # first rename full dataset
 temp_all <- temp
 
-for (m in 1:n.studydrug.vars) {
+for (m in 2) {
   
   studydrug_var = paste0("studydrug", m)
   
   temp <- temp_all %>% 
     filter(.imp != 0) %>% 
-    select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate", "predrug_pancreatitis", "predrug_retinopathy", "with_hes", "ncurrtx2", "weight_pct_change")
+    select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate", "predrug_pancreatitis", "predrug_retinopathy", "with_hes", "ncurrtx2")
   
   # create empty variables for weights
   temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- 
@@ -45,7 +46,7 @@ rm(temp_all)
 gc()
 
 # calculate weights
-for (m in 1:n.studydrug.vars) {
+for (m in 2) {
   
   studydrug_var = paste0("studydrug", m)
   
@@ -90,86 +91,6 @@ for (m in 1:n.studydrug.vars) {
     gc()
   }
   
-  # calculate separate weights for subset without retinopathy for outcomes pancreatitis and diabetic retinopathy
-  
-  # ---- retinopathy
-  temp_no_retinopathy <- temp %>% filter(predrug_retinopathy == F)
-  temp_retinopathy <- temp %>% filter(predrug_retinopathy == T)
-  
-  temp_no_retinopathy <- temp_no_retinopathy %>% as.data.frame()
-  
-  for (i in 1:n.imp) {
-    
-    print(paste0("Calculating weights for those without retinopathy in imputed dataset number ", i))
-    
-    # calculate overlap weights
-    w.overlap <- SumStat(ps.formula=ps.formula,
-                         data = temp_no_retinopathy[temp_no_retinopathy$.imp == i,],
-                         weight = c("IPW", "overlap"))
-    
-    # truncate IPTW at 2nd and 98th percentile
-    w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
-                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
-                                       ifelse(
-                                         w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
-                                         quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
-                                         w.overlap$ps.weights$IPW
-                                       ))
-    
-    
-    ## Add weights to data frame
-    weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
-    temp_no_retinopathy[temp_no_retinopathy$.imp == i,][[paste0("IPTW", m, "_retinopathy", collapse = "")]]  <- weights$IPW
-    temp_no_retinopathy[temp_no_retinopathy$.imp == i,][[paste0("overlap", m, "_retinopathy", collapse = "")]] <- weights$overlap
-    
-    rm(w.overlap)
-    rm(weights)
-    gc()
-  }
-  
-  temp <- rbind(temp_retinopathy, temp_no_retinopathy)
-  rm(temp_retinopathy)
-  rm(temp_no_retinopathy)
-  
-  # ----- pancreatitis
-  
-  temp_no_pancreatitis <- temp %>% filter(predrug_pancreatitis == F)
-  temp_pancreatitis <- temp %>% filter(predrug_pancreatitis == T)
-  
-  temp_no_pancreatitis <- temp_no_pancreatitis %>% as.data.frame()
-  
-  for (i in 1:n.imp) {
-    
-    print(paste0("Calculating weights for those without pancreatitis in imputed dataset number ", i))
-    
-    # calculate overlap weights
-    w.overlap <- SumStat(ps.formula=ps.formula,
-                         data = temp_no_pancreatitis[temp_no_pancreatitis$.imp == i,],
-                         weight = c("IPW", "overlap"))
-    
-    # truncate IPTW at 2nd and 98th percentile
-    w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
-                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
-                                       ifelse(
-                                         w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
-                                         quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
-                                         w.overlap$ps.weights$IPW
-                                       ))
-    
-    
-    ## Add weights to data frame
-    weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
-    temp_no_pancreatitis[temp_no_pancreatitis$.imp == i,][[paste0("IPTW", m, "_acutepancreatitis", collapse = "")]]  <- weights$IPW
-    temp_no_pancreatitis[temp_no_pancreatitis$.imp == i,][[paste0("overlap", m, "_acutepancreatitis", collapse = "")]] <- weights$overlap
-    
-    rm(w.overlap)
-    rm(weights)
-    gc()
-  }
-  
-  temp <- rbind(temp_pancreatitis, temp_no_pancreatitis)
-  rm(temp_pancreatitis)
-  rm(temp_no_pancreatitis)
   
 
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
@@ -188,7 +109,7 @@ load(paste0(today, "_t2d_glp1_imputed_data.Rda"))
 temp_all <- temp %>% filter(.imp != 0) 
 rm(temp)
 gc()
-for (m in 1:n.studydrug.vars) {
+for (m in 2) {
   
   
   studydrug_var = paste0("studydrug", m)
@@ -222,7 +143,7 @@ rm(temp_all)
 continuous_vars <- setdiff(vars, factor_vars)
 normal_vars <- setdiff(continuous_vars, nonnormal)
 
-for (m in 1:n.studydrug.vars) {
+for (m in 2) {
   
   print(paste0("Making weighted table for variable studydrug", m))
   
@@ -233,10 +154,6 @@ for (m in 1:n.studydrug.vars) {
   weights_overlap <- paste0("overlap", m)
   treat_var <- sym(studydrug_var)
   weight_var <- sym(weights_overlap)
-  
-  # if (m == 1) {
-  #   cohort <- cohort %>% filter(!!sym(studydrug_var) != "SGLT2i + GLP1-RA" ) %>% mutate(!!sym(studydrug_var) := droplevels(!!sym(studydrug_var)))
-  # }
   
   weighted_summary <- function(data, varname, weight = NULL, group, type = "normal") {
     
@@ -409,3 +326,241 @@ for (m in 1:n.studydrug.vars) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   write.table(as.data.frame(table1), file = paste0(today, "_weighted_table_", m, ".csv"), sep = ";", dec = ",", row.names = F)
 }
+
+############################4 HAZARD RATIOS OVERALL################################################################
+
+# create empty data frame to which we can append the hazard ratios once calculated
+hrs <- data.frame()
+
+
+# main dataset is large - for speed of computation we will only load in dataset we need each time
+gc()
+
+
+# calculate hazard ratios
+
+# for every studydrug variable:
+for (m in 2) {
+  
+  print(paste0("Loading data for variable studydrug", m, collapse = ""))
+  
+  # define studydrug variable and weights variables to be used
+  studydrug_var = paste0("studydrug", m)
+  weights_overlap = paste0("overlap", m)
+  weights_iptw = paste0("IPTW", m)
+  
+  # load data
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+  load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", m, ".Rda"))
+  gc()
+  
+  # define which drugs are evaluated with current studydrug variable
+  drug_levels <- levels(cohort[[studydrug_var]])
+  
+  
+  # remove double overlapping entries (take one only)
+  cohort <- cohort %>% 
+    group_by(.imp, patid, !!sym(studydrug_var)) %>% 
+    arrange(dstartdate) %>% 
+    filter(!duplicated(!!sym(studydrug_var))) %>% 
+    ungroup()
+  
+  cohort_all <- cohort
+  
+  # calculate hazard ratios per outcome
+  for (k in outcomes) {
+    
+    cohort <- cohort_all
+    
+    if (k == "retinopathy") {
+      # for outcome retinopathy, only retain those without a history of this
+      cohort <- cohort %>% filter(predrug_retinopathy == F)
+      weights_overlap = paste0(weights_overlap, "_", k)
+      weights_iptw = paste0(weights_iptw, "_",k) 
+      
+    }
+    
+    if (k == "acutepancreatitis") {
+      # for outcome pancreatitis, only retain those without a history of this
+      cohort <- cohort %>% filter(predrug_pancreatitis == F)
+      weights_overlap = paste0(weights_overlap, "_", k)
+      weights_iptw = paste0(weights_iptw, "_",k) 
+      
+    }
+    
+    
+    analysis_approaches <-  c("unadj", "adj", "ow", "iptw")
+    
+    
+    # for other studydrug variables use regular censoring variables
+    censvar_var=paste0(k, "_censvar")
+    censtime_var=paste0(k, "_censtime_yrs")
+    
+    
+    
+    print(paste0("Calculating event numbers per drug level for outcome ", k))
+    
+    # calculate number of subjects in each group
+    count <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var)) %>%
+      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", m, "}_count"),
+                  values_from=count)
+    
+    # calculate median follow up time (years) per group
+    followup <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var)) %>%
+      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", m, "}_followup"),
+                  values_from=time)
+    
+    # summarise number of events per group
+    events <- cohort[cohort$.imp != 0,] %>%
+      group_by(!!sym(studydrug_var)) %>%
+      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+                drug_count=round(n()/n.imp, 0)) %>%
+      mutate(events_perc=round(event_count*100/drug_count, 1),
+             events=paste0(event_count, " (", events_perc, "%)")) %>%
+      select(!!sym(studydrug_var), events) %>%
+      pivot_wider(names_from=!!sym(studydrug_var),
+                  names_glue=paste0("{studydrug", m, "}_events"),
+                  values_from=events)
+    
+    
+    # write formulas for adjusted and unadjusted analyses
+    f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, collapse = ""))
+    
+    f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, " + ", paste(covariates, collapse=" + "), collapse = ""))
+    
+    # create empty vectors to store the coefficients and standard errors of the hazard ratios from every imputed dataset
+    
+    for (n in drug_levels[-1]) {
+      for (c in c("COEFS", "SE")) {
+        for (d in analysis_approaches) {
+          assign(paste0(c, ".", n, ".", d), rep(NA, n.imp))
+          
+        }
+      }
+    }
+    
+    
+    for (i in 1:n.imp) {
+      print(paste0("Analyses in imputed dataset number ", i))
+      
+      #overlap weighted analyses
+      fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+
+      #store coefficients and standard errors from this model
+      for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
+        
+        drug_name <- drug_levels[n+1]
+        
+        # for every analysis approach, extract coefficients
+        for (d in analysis_approaches) {
+          
+          # get model for this analysis approach
+          model <- get(paste0("fit.", d))
+          
+          # write commands as strings that will dynamically extract coefficient variables for this analysis approach + drug level:
+          
+          # coef_vector[i] <- model$coefficients[n]
+          coef_statement <- paste0("`COEFS.", drug_name, ".", d, "`[", i, "] <- model$coefficients[", n, "]", collapse = "")
+          # se_vector[i] <- sqrt(model$var[n,n])
+          se_statement <- paste0("`SE.", drug_name, ".", d, "`[", i, "] <- sqrt(model$var[", n, ",", n, "])", collapse = "")
+          
+          # execute commands
+          eval(str2lang(coef_statement))
+          eval(str2lang(se_statement))
+          
+          rm(model)
+          
+        }
+      }
+      
+    }
+    
+    
+    ## loop to pool and store results
+    for (n in 1:length(drug_levels)) {
+      
+      # get drug name
+      drug_name <- drug_levels[n]
+      
+      
+      for (d in analysis_approaches) {
+        if (n == 1) {
+          # if drug level is reference category then HR will be NA
+          pooled_hr <- c(NA, NA, NA)
+          pooled_hr_string <- NA
+          
+        } else {
+          
+          # define names for objects containing pooled hr + 95% ci (as vector and as string)
+          pooled_hr_name <- paste0(d, "_", drug_name, "_hr")
+          pooled_hr_string_name <- paste0(d, "_", drug_name, "_string")
+          
+          # define names for coefficient vectors
+          coef_name <- paste0("COEFS.", drug_name, ".", d)
+          se_name <- paste0("SE.", drug_name, ".", d)
+          
+          coef_vector <- get(coef_name)
+          se_vector <- get(se_name)
+          
+          # assign appropriate name to pooled hr + 95% ci (as vector)
+          assign(pooled_hr_name, pool.rubin.HR(coef_vector, se_vector, n.imp))
+          # get dynamic handle to object
+          pooled_hr <- get(pooled_hr_name)
+          
+          # assign appropriate name to pooled hr + 95% ci (as string)
+          assign(pooled_hr_string_name, paste0(sprintf("%.2f", round(pooled_hr[1], 2)), " (", sprintf("%.2f", round(pooled_hr[2], 2)), ", ", sprintf("%.2f", round(pooled_hr[3], 2)), ")"))
+          # get dynamic handle to object
+          pooled_hr_string <- get(pooled_hr_string_name)
+          
+          
+        }
+        
+        # create dataframe containing events, follow-up etc
+        outcome_hr <- data.frame(outcome = k, 
+                                 count = as.numeric(count[n]),
+                                 followup = as.numeric(followup[n]), 
+                                 events = as.character(events[n]),
+                                 contrast = paste0(drug_name, " vs ", drug_levels[1], collapse = ""),
+                                 variable = paste0("studydrug", m, collapse = ""),
+                                 analysis = d,
+                                 HR = pooled_hr[1],
+                                 LB = pooled_hr[2],
+                                 UB = pooled_hr[3],
+                                 string = pooled_hr_string)
+        
+        # combine results by each analysis approach within each drug type (within studydrug variable)
+        hrs <- rbind(hrs, outcome_hr)
+        
+        
+      }
+      
+    }
+    
+  }    
+  
+  
+}
+
+rm(cohort_all)
+
+# ensure hazard ratio and 95% ci are stored as numeric variables
+class(hrs$HR) <- class(hrs$LB) <- class(hrs$UB) <- "numeric"
+
+# create separate variables for events per number of drug initiations (nN)
+hrs <- hrs %>% 
+  separate(`events`, into = c("events_number", "events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `events_percentage` = str_replace(`events_percentage`, "\\)", ""),
+    `nN` = paste0("  ", format(as.numeric(`events_number`), big.mark = ",", scientific = F), " / ", format(`count`, big.mark = ",", scientific = F)),
+  )
+
+# store hazard ratios
+hrs_incl_missing_uacr <- hrs
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+save(hrs_incl_missing_uacr, file=paste0(other_day, "_hrs_incl_missing_uacr.Rda"))

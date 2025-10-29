@@ -1,14 +1,13 @@
 
 # Produce survival variables for all endpoints (including for sensitivity analysis)
-## All censored at 3 years post drug start (5 years for sensitivity analysis) / end of GP records / death / starting a GLP1 if not in the treatment group, and also drug stop date + 6 months for per-protocol analysis
+## All censored at 3 years post drug initiation (5 years for sensitivity analysis) / end of GP records / death / starting a GLP1-RA if not in the treatment group, and also drug stop date + 6 months for per-protocol analysis
 
 # Main analysis:
-## 'ckd_egfr40': decline in eGFR of >=40% from baseline or onset of CKD stage 5 OR death from kidney-related causes
+## 'ckd_egfr40': decline in eGFR of >=40% from baseline OR onset of CKD stage 5 OR death from kidney-related causes
 
 # Sensitivity analysis:
 ## '{outcome}_sens': all of main analysis but with different groupings of drugs
-## intention to treat: censoring if starting an SGLT2 inhibitor or GLP1 agonist (if in DPP4 + SU arm).
-## sensitivity: censoring if starting any other treatment arm in analyses to compare DPP4i with SU arm or different GLP1s.
+## intention to treat: censoring if starting an SGLT2i or GLP1-RA (if in DPP4i/SU arm).
 
 
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
@@ -16,7 +15,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   # Add survival variables for outcomes for main analysis
   
   
-  main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
+  main_outcomes <- c("ckd_egfr40", "death", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
   
   
   cohort <- cohort_dataset %>%
@@ -47,7 +46,6 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                  # censor subjects if starting Su or DPP4 only if in those groups
                                  if_else(studydrug1=="DPP4", next_su_start, as.Date("2050-01-01")),
                                  if_else(studydrug1=="SU", next_dpp4_start, as.Date("2050-01-01")),
-                                 #    dstopdate_class+183,
                                  na.rm=TRUE),
            
            cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
@@ -67,11 +65,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                    kf_death_date_any_cause,
                                    na.rm=TRUE),
            
-           ckd_egfr50_outcome=pmin(egfr_50_decline_date,
-                                   postckdstage5date,
-                                   kf_death_date_any_cause,
-                                   na.rm=TRUE),
-           
+
            ckd_egfr40_outcome_type=ifelse(
              is.na(ckd_egfr40_outcome), 
              NA,
@@ -101,8 +95,8 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
            lowerlimbfracture_outcome=pmin(postdrug_first_lowerlimbfracture,
                                           na.rm=TRUE),
            
-           
            death_outcome=death_date
+           
     )
   
   

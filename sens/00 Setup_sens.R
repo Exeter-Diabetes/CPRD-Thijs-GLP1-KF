@@ -45,7 +45,8 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2025-10-19"
+today <- "2025-10-27"
+other_day = "2025-10-19"
 
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
@@ -93,8 +94,7 @@ covariates <- c("dstartdate_age",
                 )
 
 #outcomes to be studied:
-outcomes <- c("ckd_egfr40", "mace", "hf", "lowerlimbfracture", "retinopathy", "acutepancreatitis")
-outcomes_per_drugclass <- c("ckd_egfr40", "mace", "hf")
+outcomes <- outcomes_per_drugclass <- "ckd_egfr40"
 
 
 # set default colour-blind accessible colours for figures later on
@@ -119,14 +119,11 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd_decile",
 
 #categorical variables
 factor_vars <- c("malesex", "ethnicity_4cat", "imd_decile", "egfr_cat", 
-             "albuminuria_cat", 
-             "smoking_status", "predrug_retinopathy", "predrug_pancreatitis",
-             "predrug_af", "predrug_cvd", "predrug_heartfailure", 
-             "hosp_admission_prev_year",  "predrug_efi_cat", 
-             "initiation_year",
-             "ncurrtx", "statin", "INS", "ACE_or_ARB", "preegfr_count_12m_cat", "egfr_count_12m_cat")
+                 "albuminuria_cat", 
+                 "smoking_status", "predrug_retinopathy", "predrug_pancreatitis",
+                 "predrug_af", "predrug_cvd", "predrug_heartfailure", 
+                 "hosp_admission_prev_year",  "predrug_efi_cat", 
+                 "initiation_year",
+                 "ncurrtx", "statin", "INS", "ACE_or_ARB", "preegfr_count_12m_cat", "egfr_count_12m_cat")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all", "preegfr_count_12m", "egfr_count_12m")
-
-# set main studydrug variable
-main = 2

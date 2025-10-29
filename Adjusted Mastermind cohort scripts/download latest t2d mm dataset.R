@@ -17,6 +17,9 @@ analysis = cprd$analysis("thijs_glp1")
 
 today <- as.character(Sys.Date(), format="%Y%m%d")
 
+is.integer64 <- function(x){
+  class(x)=="integer64"
+}
 
 ############################################################################################
 
@@ -33,10 +36,6 @@ t2d_1stinstance <- t2d_1stinstance %>%
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Raw data/")
 
 t2d_1stinstance_a <- collect(t2d_1stinstance %>% filter(patid<2000000000000) %>% mutate(patid=as.character(patid)))
-
-is.integer64 <- function(x){
-  class(x)=="integer64"
-}
 
 t2d_1stinstance_a <- t2d_1stinstance_a %>%
   mutate_if(is.integer64, as.integer)
