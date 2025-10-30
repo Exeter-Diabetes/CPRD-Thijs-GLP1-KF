@@ -28,7 +28,7 @@ for (m in 1:n.studydrug.vars) {
     select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate", "predrug_pancreatitis", "predrug_retinopathy", "with_hes", "ncurrtx2", "weight_pct_change")
   
   # create empty variables for weights
-  temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- 
+  temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- temp[[paste0("ps", m, collapse = "")]] <- 
     temp[[paste0("IPTW", m, "_retinopathy", collapse = "")]] <- temp[[paste0("overlap", m, "_retinopathy", collapse = "")]] <- NA
   
   temp <- temp %>% 
@@ -84,11 +84,57 @@ for (m in 1:n.studydrug.vars) {
     weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
     temp[temp$.imp == i,][[paste0("IPTW", m, collapse = "")]]  <- weights$IPW
     temp[temp$.imp == i,][[paste0("overlap", m, collapse = "")]] <- weights$overlap
+
+    # save propensity score additionally for diagnostics
+    temp[temp$.imp == i,][[paste0("ps", m, collapse = "")]] <- w.overlap$propensity[,2]
     
     rm(w.overlap)
     rm(weights)
     gc()
   }
+  
+  ## check distribution of overlap weights - save plot
+  studydrug_var <- paste0("studydrug", m)
+  weights_overlap <- paste0("overlap", m)
+  ps_var <- paste0("ps", m)
+  
+  
+  weight_plot_data <- temp %>% 
+    group_by(.imp, !!sym(studydrug_var)) %>%
+    mutate(weight_before = 1 / n(),                         # overlap weights are proportional to total number in group; standardise unweighted observations similarly to get proportion
+           weight_after  = !!sym(weights_overlap)) %>%
+    ungroup() %>%
+    select(weight_before, weight_after, !!sym(ps_var), !!sym(studydrug_var)) %>%
+    pivot_longer(cols = starts_with("weight_"),
+                 names_to = "stage",
+                 values_to = "weight") %>%
+    mutate(stage = recode(stage,
+                          weight_after  = "After weighting",
+                          weight_before = "Before weighting"),
+           stage = as.factor(stage),
+           stage = relevel(stage, ref = "Before weighting"))
+  
+  weight_plot <- ggplot(weight_plot_data, aes(x = !!sym(ps_var), fill = !!sym(studydrug_var))) +
+    geom_histogram(data = df_long_plot %>% filter(stage == "Before weighting"),
+                   aes(weight = weight), alpha = 0.5, colour = "grey20", bins = 30, position = "identity") +
+    geom_histogram(data = df_long_plot %>% filter(stage == "After weighting"),
+                   aes(weight = weight), alpha = 0.5, colour = "grey20", bins = 30, position = "identity") +
+    scale_fill_manual(values = cols) +
+    facet_wrap(stage ~ ., nrow = 1, scales = "free_x") +
+    labs(x = "Propensity score", y = "Percent")+
+    theme_bw() +
+    theme(legend.title=element_blank(),
+          legend.text = element_text(size=10),
+          strip.text = element_text(size = 12),
+          axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank()) 
+  
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+  tiff(paste0(today, "_overlap_weight_plot_", m, ".tiff"), width=8, height=5, units = "in", res=800)
+  print(weight_plot)
+  dev.off()
   
   # calculate separate weights for subset without retinopathy for outcomes pancreatitis and diabetic retinopathy
   
@@ -233,10 +279,6 @@ for (m in 1:n.studydrug.vars) {
   weights_overlap <- paste0("overlap", m)
   treat_var <- sym(studydrug_var)
   weight_var <- sym(weights_overlap)
-  
-  # if (m == 1) {
-  #   cohort <- cohort %>% filter(!!sym(studydrug_var) != "SGLT2i + GLP1-RA" ) %>% mutate(!!sym(studydrug_var) := droplevels(!!sym(studydrug_var)))
-  # }
   
   weighted_summary <- function(data, varname, weight = NULL, group, type = "normal") {
     

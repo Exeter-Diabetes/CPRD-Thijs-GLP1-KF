@@ -98,9 +98,9 @@ outcomes_per_drugclass <- c("ckd_egfr40", "mace", "hf")
 
 
 # set default colour-blind accessible colours for figures later on
-cols <- c("SGLT2i" = "#E69F00", "GLP1-RA" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = "#0072B2", "TZD" = "#D55E00")
-#in further analyses, the DPP4 + SU group will be combined, and we will use the dpp4 colour for this (strongest contrast)
-cols <- c(cols, "SGLT2i + DPP4i/SU" = "#CC79A7", "SGLT2i + GLP1-RA" = "#56B4E9")
+cols <- c("SGLT2i + SU" = "#E69F00", "SGLT2i + GLP1-RA" = "#56B4E9", 
+          "SGLT2i + DPP4i" = "#CC79A7", "SGLT2i + DPP4i/SU" = "#CC79A7",
+          "Other GLP1-RA" = "#0072B2", "GLP1-RA with direct kidney outcome evidence" = "#56B4E9")
 
 # variables to be shown in tables
 vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd_decile",            

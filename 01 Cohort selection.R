@@ -281,11 +281,13 @@ imp <- mice(data = cohort,
             seed = 123)
 
 #check imputed vs original values
+
 density_plot <- densityplot(x = imp, data = ~ imd_decile + prebmi + presbp + pretotalcholesterol +
-                                  prehba1c + dstartdate_dm_dur_all + qrisk2_smoking_cat + hosp_admission_prev_year)
+                              prehba1c + dstartdate_dm_dur_all + qrisk2_smoking_cat + hosp_admission_prev_year)
+
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-tiff(paste0(today, "_mice_density_plot.tiff"), width=7.5, height=6, units = "in", res=800)
+tiff(paste0(today, "_mice_density_plot.tiff"), width=10, height=6, units = "in", res=800)
 print(density_plot)
 dev.off()
 
