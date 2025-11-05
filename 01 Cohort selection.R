@@ -448,20 +448,26 @@ event_rates <- data.frame(
   studydrug_var = character(),
   drug_level = character(),
   outcome = character(),
+  n_at_risk = numeric(),
+  events = numeric(),
+  pyears = numeric(),
   event_rate_1000yrs = numeric(),
   stringsAsFactors = F
 )
+
+temp_all <- temp
 
 for (m in 1:n.studydrug.vars) {  
   
   studydrug_var <- paste0("studydrug", m)
   print(paste0("Event rates for ", studydrug_var))
   
-  temp_all <- temp
   
   for (k in outcomes) {
     
-    temp <- temp_all
+    print(k)
+    
+    temp <- temp_all 
     
     if (k == "retinopathy") {
       temp <- temp_all %>% filter(predrug_retinopathy == F)
@@ -474,7 +480,7 @@ for (m in 1:n.studydrug.vars) {
     if (m == 1) {
       k <- paste0(k, "_sens1")
     }
-    
+ 
     censvar_var  <- paste0(k, "_censvar")
     censtime_var <- paste0(k, "_censtime_yrs")  
     
@@ -483,6 +489,7 @@ for (m in 1:n.studydrug.vars) {
       
       temp_sub <- temp %>% filter(.imp != 0 & !!sym(studydrug_var) == n)
       
+      n_at_risk <- nrow(temp_sub)
       events  <- sum(temp_sub[[censvar_var]], na.rm = T)
       pyears  <- sum(temp_sub[[censtime_var]], na.rm = T)
       
@@ -495,6 +502,9 @@ for (m in 1:n.studydrug.vars) {
           studydrug_var = studydrug_var,
           drug_level = n,
           outcome = k,
+          n_at_risk = n_at_risk/n.imp,
+          events = events/n.imp,
+          pyears = pyears/n.imp,
           event_rate_1000yrs = event_1000yrs,
           stringsAsFactors = F
         )

@@ -315,7 +315,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-tiff(paste0(today, "_HR_", main, "_secondary_outcomes.tiff"), width=12, height=length(outcomes_per_drugclass)*0.8, units = "in", res=800)
+tiff(paste0(today, "_HR_", main, "_secondary_outcomes.tiff"), width=12, height=length(outcomes_per_drugclass)*1.2, units = "in", res=800)
 print(forest_plot)
 dev.off()
 

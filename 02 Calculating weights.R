@@ -115,9 +115,9 @@ for (m in 1:n.studydrug.vars) {
            stage = relevel(stage, ref = "Before weighting"))
   
   weight_plot <- ggplot(weight_plot_data, aes(x = !!sym(ps_var), fill = !!sym(studydrug_var))) +
-    geom_histogram(data = df_long_plot %>% filter(stage == "Before weighting"),
+    geom_histogram(data = weight_plot_data %>% filter(stage == "Before weighting"),
                    aes(weight = weight), alpha = 0.5, colour = "grey20", bins = 30, position = "identity") +
-    geom_histogram(data = df_long_plot %>% filter(stage == "After weighting"),
+    geom_histogram(data = weight_plot_data %>% filter(stage == "After weighting"),
                    aes(weight = weight), alpha = 0.5, colour = "grey20", bins = 30, position = "identity") +
     scale_fill_manual(values = cols) +
     facet_wrap(stage ~ ., nrow = 1, scales = "free_x") +
@@ -132,7 +132,7 @@ for (m in 1:n.studydrug.vars) {
           panel.background = element_blank()) 
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-  tiff(paste0(today, "_overlap_weight_plot_", m, ".tiff"), width=8, height=5, units = "in", res=800)
+  tiff(paste0(today, "_propensity_score_distribution_plot_", m, ".tiff"), width=8, height=5, units = "in", res=800)
   print(weight_plot)
   dev.off()
   
