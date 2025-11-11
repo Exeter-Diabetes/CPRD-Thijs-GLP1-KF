@@ -2,8 +2,13 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Scripts/CPRD-Thijs-GLP1-KF/")
 source("00 Setup.R")
 
+## sensitivity analyses - excluding several subgroups
+## sensitivity analysis including those with missing uacr is in separate codes in folder /sens/
+
+# primary outcome only
 outcomes_sensitivity = outcomes[1]
 
+# primary analysis approach only
 analysis_approaches = "ow"
 ############################1 CALCULATE WEIGHTS AND HAZARD RATIOS################################################################
 
@@ -25,11 +30,11 @@ for (r in 1:5) {
   
     if (r == 1) {
     print(paste0("Remove multiple episodes per subject"))
-      #subjects can theoretically be in the non-GLP1 group, and later on have a 2nd episode in the GLP1 group
+      #subjects can  be in the comparator group, and later on have a 2nd episode in the GLP1 group
       temp <- temp %>%
         group_by(.imp, patid) %>%
         filter(
-          # Keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
+          # only keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
           !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
         ) %>%
         ungroup()
@@ -113,7 +118,7 @@ for (r in 1:5) {
     temp <- temp %>%
       group_by(.imp, patid) %>%
       filter(
-        # Keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
+        # only keep "SGLT2i + DPP4i/SU" if patient also has "SGLT2i + GLP1-RA"
         !(studydrug2 == "SGLT2i + GLP1-RA" & "SGLT2i + DPP4i/SU" %in% studydrug2)
       ) %>%
       ungroup()
@@ -199,7 +204,7 @@ for (r in 1:5) {
     drug_levels <- levels(cohort[[studydrug_var]])
     
     
-    # remove double overlapping entries (take one only)
+    # for safety remove double overlapping entries (should be redundant code)
     cohort <- cohort %>% 
       group_by(.imp, patid, !!sym(studydrug_var)) %>% 
       arrange(dstartdate) %>% 
@@ -209,12 +214,10 @@ for (r in 1:5) {
     
     # calculate hazard ratios per outcome
     for (k in outcomes_sensitivity) {      
-      # for other studydrug variables use regular censoring variables
+
       censvar_var=paste0(k, "_censvar")
       censtime_var=paste0(k, "_censtime_yrs")
-      
-      
-      
+    
       print(paste0("Calculating event numbers per drug level for outcome ", k))
       
       # calculate number of subjects in each group
@@ -266,7 +269,7 @@ for (r in 1:5) {
       for (i in 1:n.imp) {
         print(paste0("Analyses in imputed dataset number ", i))
         
-        #overlap weighted analyses
+        #overlap weighted model only
         fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
  
         #store coefficients and standard errors from this model

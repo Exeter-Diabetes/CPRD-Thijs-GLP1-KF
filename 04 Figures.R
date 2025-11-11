@@ -503,170 +503,146 @@ dev.off()
 
 ############################4 FOREST PLOT FOR DPP4i vs SU################################################################
 
-m = 1
-studydrug_var = paste0("studydrug", m)
+m <- 1
+studydrug_var <- paste0("studydrug", m)
 
-drug_reference = levels(cohort[[studydrug_var]])[1]
-drug_of_interest = levels(cohort[[studydrug_var]])[2]
+drug_levels <- levels(cohort[[studydrug_var]])
 
-# Collect datasets across outcomes
-# subset to outcome k and the current studydrug variable
-temp <- hrs %>%
-  filter(analysis == "ow",
-         outcome %in% (outcomes %>% setdiff(c("death"))),
-         variable == paste0("studydrug", m)) %>%
-  mutate(HR = ifelse(is.na(string), 1, HR),
-         string = ifelse(is.na(string), "1.00 (ref.)", as.character(string))
-  )
+# all pairwise combinations
+pairs <- combn(drug_levels, 2, simplify = FALSE)
 
-# ensure these cols are factors as used previously
-temp[c("outcome","contrast","variable","analysis")] <-
-  lapply(temp[c("outcome","contrast","variable","analysis")], factor)
-
-
-# drug label extracted from contrast (as before)
-temp$drug <- as.factor(sub(" vs.*", "", temp$contrast))
-
-temp_k <- temp %>%
-  filter(!grepl(drug, "GLP1-RA")) %>%
-  mutate(drug = factor(drug, levels = c("SGLT2i + SU", "SGLT2i + DPP4i")))
-
-
-#  extract the reference group's nN for this outcome (first factor level) 
-ref_level <- levels(temp_k$drug)[1]
-
-# pull unique nN for the ref level (take first non-NA if multiple)
-ref_nN_val <- temp_k %>%
-  filter(drug == ref_level) %>%
-  pull(nN) %>%
-  unique() %>%
-  .[!is.na(.)] 
-
-# safety: if nothing found, set NA_character_
-if (is.null(ref_nN_val) || length(ref_nN_val) == 0) ref_nN_val <- NA_character_
-
-# create treated/ref columns, keep only the treated rows (drop ref rows)
-temp_k <- temp_k %>%
-  filter(drug != ref_level) %>%
-  mutate(treated_nN = nN,
-         ref_nN = ref_nN_val) 
-
-# heading row (with column titles for treated and reference)
-heading <- tibble(
-  outcome = "Outcome",
-  drug = "",
-  HR = NA_real_, LB = NA_real_, UB = NA_real_,
-  string = "HR (95% CI)",
-  treated_nN = paste0(drug_of_interest, " (n/N)"),
-  ref_nN = paste0(drug_reference, " (n/N)")
-)
-
-
-
-
-
-plot_df <- bind_rows(heading, temp_k)
-
-custom_order <- c("Outcome", "ckd_egfr40", "mace", "hf", "acutepancreatitis", "retinopathy", "lowerlimbfracture")
-
-plot_df$outcome <- factor(plot_df$outcome, levels = custom_order)
-plot_df <- plot_df %>%
-  arrange(outcome, desc(HR %>% is.na()))
-
-# Set y order (reverse for top-down order)
-plot_df$y_order <- rev(seq_len(nrow(plot_df)))
-
-# Define pretty labels
-outcome_labels <- c(
-  "ckd_egfr40"             = "≥40% eGFR decline/ESKD",
-  "mace"                   = "MACE (incl. CV death)",
-  "hf"                     = "Hospitalisation for HF",
-  "acutepancreatitis"      = "Acute pancreatitis",
-  "retinopathy"            = "Incident diabetic retinopathy",
-  "lowerlimbfracture"      = "Lower limb fracture"
-)
-
-xmin = 0.10
-xmax = 3.2
-# Apply mapping before building plot_df
-plot_df <- plot_df %>%
-  mutate(outcome = recode(outcome, !!!outcome_labels),
-         # also update headings if we used outcome as heading text
-         drug = ifelse(drug %in% outcomes, outcome, drug))
-
-
-# Forest plot with tabulated extras
-forest_plot <- ggplot(plot_df, aes(y = y_order)) +
-  # Forest CI + point
-  geom_linerange(aes(xmin = LB, xmax = UB), na.rm = TRUE) +
-  geom_point(aes(x = HR), shape = 15, size = 3, na.rm = TRUE) +
-  geom_vline(xintercept = 1, linetype = "dashed") +
+for (pair in pairs) {
   
-  # Outcome headings on the left
-  geom_text(aes(x = 0.10, label = outcome,
-                fontface = ifelse(HR %>% is.na(), "bold", "plain")),
-            hjust = 0) +
+  drug_reference   <- pair[1]
+  drug_of_interest <- pair[2]
   
-  # Events/subjects in middle-left
-  # Treated n/N
-  geom_text(aes(x = 0.185, label = treated_nN,
-                fontface = ifelse(is.na(HR), "bold", "plain")),
-            hjust = 0) +
+  print(paste0("Processing comparison: ", drug_of_interest, " vs ", drug_reference))
+  
+  temp <- hrs %>%
+    filter(
+      analysis == "ow",
+      outcome %in% (outcomes %>% setdiff("death")),
+      variable == studydrug_var
+    ) %>%
+    mutate(
+      HR     = ifelse(is.na(string), 1, HR),
+      string = ifelse(is.na(string), "1.00 (ref.)", as.character(string))
+    )
+  
+  # Ensure factor columns
+  temp[c("outcome","contrast","variable","analysis")] <-
+    lapply(temp[c("outcome","contrast","variable","analysis")], factor)
+  
+  # Extract drug from contrast
+  temp$drug <- as.factor(sub(" vs.*", "", temp$contrast))
+  
+  # Keep only drugs in this specific pair
+  temp_k <- temp %>%
+    filter(
+      contrast %in% c(
+        paste0(drug_of_interest, " vs ", drug_reference),
+        paste0(drug_reference, " vs ", drug_reference)
+      )
+    ) %>%
+    filter(drug %in% pair)
+  
+  # Re-level so reference drug is first
+  temp_k$drug <- factor(temp_k$drug, levels = c(drug_reference, drug_of_interest))
   
   # Reference n/N
-  geom_text(aes(x = 0.325, label = ref_nN,
-                fontface = ifelse(is.na(HR), "bold", "plain")),
-            hjust = 0) +
+  ref_level <- levels(temp_k$drug)[1]
+  ref_nN_val <- temp_k %>%
+    filter(drug == ref_level) %>%
+    pull(nN) %>%
+    unique() %>%
+    .[!is.na(.)]
+  if (is.null(ref_nN_val) || length(ref_nN_val) == 0) ref_nN_val <- NA_character_
   
+  # Keep treated rows
+  temp_k <- temp_k %>%
+    filter(drug != ref_level) %>%
+    mutate(treated_nN = nN,
+           ref_nN = ref_nN_val)
   
-  # HR text on right-hand side
-  geom_text(aes(x = 2.65, label = string,
-                fontface = ifelse(HR %>% is.na(), "bold", "plain")),
-            hjust = 0) +
-  
-  # text to indicate which drug to favour
-  annotate("text", x = .75,
-           y = max(plot_df$y_order), fontface = "italic",
-           label = paste0("Favours ", drug_of_interest %>% substr(9, nchar(drug_of_interest)))) +
-  
-  annotate("text", x = 1.5,
-           y = max(plot_df$y_order), fontface = "italic",
-           label = paste0("Favours ", drug_reference %>% substr(9, nchar(drug_reference)))) +
-  
-  scale_x_continuous(trans = "log10",
-                     breaks = c(0.5, 0.75, 1, 1.5, 2.5),
-                     limits = c(xmin, xmax)) +
-  scale_y_continuous(NULL, breaks = NULL) +
-  labs(x = "HR (95% CI)", y = NULL) +
-  theme_classic() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line   = element_blank(),
-    axis.ticks  = element_blank(),   
-    axis.text.y = element_blank(),
-    axis.title.x = element_text(
-      hjust = 0.72
-    )
-  ) +
-  
-  # custom axis line
-  geom_segment(aes(x = 0.45, xend = 2.7, y = 0, yend = 0),
-               inherit.aes = FALSE, linewidth = 0.4, color = "black") +
-  
-  # custom ticks
-  geom_segment(
-    data = data.frame(x = c(0.5, 0.75, 1, 1.5, 2.5)),
-    aes(x = x, xend = x, y = 0, yend = -0.2),
-    inherit.aes = FALSE,
-    linewidth = 0.4,
-    color = "black"
+  # Heading row
+  heading <- tibble(
+    outcome = "Outcome",
+    drug = "",
+    HR = NA_real_, LB = NA_real_, UB = NA_real_,
+    string = "HR (95% CI)",
+    treated_nN = paste0(drug_of_interest, " (n/N)"),
+    ref_nN = paste0(drug_reference, " (n/N)")
   )
+  
+  plot_df <- bind_rows(heading, temp_k)
+  
+  custom_order <- c("Outcome", "ckd_egfr40", "mace", "hf", "acutepancreatitis", "retinopathy", "lowerlimbfracture")
+  
+  plot_df$outcome <- factor(plot_df$outcome, levels = custom_order)
+  plot_df <- plot_df %>%
+    arrange(outcome, desc(is.na(HR)))
+  plot_df$y_order <- rev(seq_len(nrow(plot_df)))
+  
+  outcome_labels <- c(
+    "ckd_egfr40"        = "≥40% eGFR decline/ESKD",
+    "mace"              = "MACE (incl. CV death)",
+    "hf"                = "Hospitalisation for HF",
+    "acutepancreatitis" = "Acute pancreatitis",
+    "retinopathy"       = "Incident diabetic retinopathy",
+    "lowerlimbfracture" = "Lower limb fracture"
+  )
+  
+  xmin <- 0.09; xmax <- 3.2
+  
+  plot_df <- plot_df %>%
+    mutate(outcome = recode(outcome, !!!outcome_labels),
+           drug = ifelse(drug %in% outcomes, outcome, drug))
+  
+  forest_plot <- ggplot(plot_df, aes(y = y_order)) +
+    geom_linerange(aes(xmin = LB, xmax = UB), na.rm = TRUE) +
+    geom_point(aes(x = HR), shape = 15, size = 3, na.rm = TRUE) +
+    geom_vline(xintercept = 1, linetype = "dashed") +
+    
+    geom_text(aes(x = 0.09, label = outcome,
+                  fontface = ifelse(is.na(HR), "bold", "plain")), hjust = 0) +
+    geom_text(aes(x = 0.175, label = treated_nN,
+                  fontface = ifelse(is.na(HR), "bold", "plain")), hjust = 0) +
+    geom_text(aes(x = 0.325, label = ref_nN,
+                  fontface = ifelse(is.na(HR), "bold", "plain")), hjust = 0) +
+    geom_text(aes(x = 2.65, label = string,
+                  fontface = ifelse(is.na(HR), "bold", "plain")), hjust = 0) +
+    
+    annotate("text", x = .75, y = max(plot_df$y_order), fontface = "italic",
+             label = paste0("Favours ", drug_of_interest %>% substr(9, nchar(drug_of_interest)))) +
+    annotate("text", x = 1.5, y = max(plot_df$y_order), fontface = "italic",
+             label = paste0("Favours ", drug_reference %>% substr(9, nchar(drug_reference)))) +
+    
+    scale_x_continuous(trans = "log10",
+                       breaks = c(0.5, 0.75, 1, 1.5, 2.5),
+                       limits = c(xmin, xmax)) +
+    scale_y_continuous(NULL, breaks = NULL) +
+    labs(x = "HR (95% CI)", y = NULL) +
+    theme_classic() +
+    theme(
+      panel.grid = element_blank(),
+      axis.line = element_blank(),
+      axis.ticks = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title.x = element_text(hjust = 0.72)
+    ) +
+    geom_segment(aes(x = 0.45, xend = 2.7, y = 0, yend = 0),
+                 inherit.aes = FALSE, linewidth = 0.4, color = "black") +
+    geom_segment(data = data.frame(x = c(0.5, 0.75, 1, 1.5, 2.5)),
+                 aes(x = x, xend = x, y = 0, yend = -0.2),
+                 inherit.aes = FALSE, linewidth = 0.4, color = "black")
+  
+  # Save output
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
+  tiff(paste0(today,"_HR_", m, "_", gsub(" ", "", drug_of_interest), "_vs_", gsub(" ", "", drug_reference), "_all_outcomes.tiff"), width = 12, height = length(outcomes %>% setdiff("death")) * 0.6, units = "in", res = 800)
+  print(forest_plot)
+  dev.off()
+}
 
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-tiff(paste0(today, "_HR_", m, "_all_outcomes.tiff"), width=12, height=length(outcomes %>% setdiff("death"))*0.6, units = "in", res=800)
-print(forest_plot)
-dev.off()
 
 ############################5 FOREST PLOT BY GLP1-RA TYPE################################################################
 
@@ -1108,7 +1084,7 @@ plot_df$y_order <- rev(seq_len(nrow(plot_df)))
 
 # Define pretty labels
 analysis_labels <- c(
-  "ow"          = "Overlap-weighting\n(primary analysis)",
+  "ow"          = "Primary analysis",
   "ow_5y"       = "Follow-up extended up to 5 years",
   "ow_pp"       = "Per-protocol analysis",
   "iptw"        = "Inverse probability of\ntreatment weighting",

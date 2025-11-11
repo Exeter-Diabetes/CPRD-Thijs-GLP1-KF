@@ -38,10 +38,11 @@ for (m in 1:n.studydrug.vars) {
   gc()
   
   # define which drugs are evaluated with current studydrug variable
+  cohort[[studydrug_var]] <- as.factor(cohort[[studydrug_var]]) # safety ensure studydrug variable is a factor
   drug_levels <- levels(cohort[[studydrug_var]])
   
   
-  # remove double overlapping entries (take one only)
+  # remove double overlapping entries (these should have been removed already - as safety repeat lines of code included)
   cohort <- cohort %>% 
     group_by(.imp, patid, !!sym(studydrug_var)) %>% 
     arrange(dstartdate) %>% 
@@ -112,7 +113,7 @@ for (m in 1:n.studydrug.vars) {
                     values_from=events)
       
       
-      # write formulas for adjusted and unadjusted analyses
+      # write formulas for adjusted and unadjusted models
       f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, collapse = ""))
       
       f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, " + ", paste(covariates, collapse=" + "), collapse = ""))
@@ -132,13 +133,13 @@ for (m in 1:n.studydrug.vars) {
       for (i in 1:n.imp) {
         print(paste0("Analyses in imputed dataset number ", i))
         
-        #unadjusted analyses first
+        #unadjusted model
         fit.unadj <- coxph(f2, cohort[cohort$.imp == i,])
-        #adjusted analyses
+        #adjusted model
         fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])      
-        #overlap weighted analyses
+        #overlap weighted model
         fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
-        #inverse probability of treatment weighted analyses
+        #inverse probability of treatment weighted model
         fit.iptw <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
         
         #store coefficients and standard errors from this model
@@ -353,7 +354,7 @@ m = main
                   values_from=events)
     
     
-    # write formulas for adjusted and unadjusted analyses
+    # write formulas for adjusted and unadjusted models
     f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, collapse = ""))
     
     f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, " + ", paste(covariates, collapse=" + "), collapse = ""))
@@ -373,7 +374,7 @@ m = main
     for (i in 1:n.imp) {
       print(paste0("Analyses in imputed dataset number ", i))
   
-      #overlap weighted analyses
+      #overlap weighted model
         
       fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
@@ -587,7 +588,7 @@ for (k in outcomes[1]) {
                 values_from=events)
   
   
-  # write formulas for adjusted and unadjusted analyses
+  # write formulas for adjusted and unadjusted models
   f2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, collapse = ""))
   
   f_adjusted2 <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", m, " + ", paste(covariates, collapse=" + "), collapse = ""))
@@ -607,7 +608,7 @@ for (k in outcomes[1]) {
   for (i in 1:n.imp) {
     print(paste0("Analyses in imputed dataset number ", i))
     
-    #overlap weighted analyses
+    #overlap weighted model
     
     fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
     
@@ -1010,7 +1011,7 @@ for (k in outcomes[1]) {
       covariates <- covariates %>% setdiff(covariates[grepl("ethnicity", covariates)])
     }
     
-    # write formula for analyses with interaction
+    # write formula for models with interaction
     f_adjusted_interaction <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*", l, " + ", paste(covariates, collapse=" + "), collapse = ""))
     
     # empty vector for wald statistic
@@ -1019,7 +1020,7 @@ for (k in outcomes[1]) {
     for (i in 1:n.imp) {
       print(paste0("Analyses in imputed dataset number ", i))
       
-      # analyses with interaction
+      # model with interaction
       model <- coxph(f_adjusted_interaction, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
       # save wald statistic for interaction term
@@ -1372,7 +1373,7 @@ for (k in outcomes[1]) {
       covariates <- covariates %>% setdiff(covariates[grepl("age", covariates)])
     }
     
-    # write formula for analyses with interaction
+    # write formula for model with interaction
     f_adjusted_interaction <- as.formula(paste0("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug", main, "*", l, " + ", paste(covariates, collapse=" + "), collapse = ""))
     
     # empty vector for wald statistic
@@ -1381,7 +1382,7 @@ for (k in outcomes[1]) {
     for (i in 1:n.imp) {
       print(paste0("Analyses in imputed dataset number ", i))
       
-      # analyses with interaction
+      # model with interaction
       model <- coxph(f_adjusted_interaction, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
       # save wald statistic for interaction term

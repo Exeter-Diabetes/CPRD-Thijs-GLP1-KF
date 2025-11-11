@@ -1,6 +1,6 @@
 
 # Produce survival variables for all endpoints (including for sensitivity analysis)
-## All censored at 3 years post drug initiation (5 years for sensitivity analysis) / end of GP records / death / starting a GLP1-RA if not in the treatment group, and also drug stop date + 6 months for per-protocol analysis
+## All censored at 3 years post drug initiation (5 years for sensitivity analysis) / end of GP records / end of HES records / death / starting a GLP1-RA if not in the treatment group, and also drug stop date + 6 months for per-protocol analysis
 
 # Main analysis:
 ## 'ckd_egfr40': decline in eGFR of >=40% from baseline OR onset of CKD stage 5 OR death from kidney-related causes
@@ -20,88 +20,101 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   cohort <- cohort_dataset %>%
     
-    mutate(gp_end_date=pmax(gp_end_date, as.Date("2023-03-31"), na.rm=TRUE),
-           
-           
-           cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
-                               hes_end_date,
-                               gp_end_date,
-                               death_date,
-                               if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+    mutate( 
+      ## event dates
+      
+      # if eGFR measurement showing a 40% decline is a final measurement, use this date, otherwise require 2nd measurement 28 days apart to confirm
+      egfr_40_decline_date = ifelse(
+        is.na(cohort$post_egfr_40_decline_date_next_egfr) | is.null(cohort$post_egfr_40_decline_date_next_egfr),
+        cohort$egfr_40_decline_date,
+        cohort$egfr_40_decline_date_confirmed
+      ),
+      
+      # primary outcome
+      ckd_egfr40_outcome=pmin(egfr_40_decline_date,
+                              postckdstage5date,
+                              kf_death_date_any_cause,
+                              na.rm=TRUE),
+      
+      
+      ckd_egfr40_outcome_type=ifelse(
+        is.na(ckd_egfr40_outcome), 
+        NA,
+        ifelse(ckd_egfr40_outcome == egfr_40_decline_date, 
+               "40% eGFR decline",
+               ifelse(ckd_egfr40_outcome == postckdstage5date, 
+                      "ESKD", 
+                      "Kidney-related death")
+        )
+      ),
+      
+      # mace
+      mace_outcome=pmin(postdrug_first_myocardialinfarction,
+                        postdrug_first_stroke,
+                        cv_death_date_any_cause,
+                        na.rm=TRUE),
+      
+      # heart failure
+      hf_outcome=pmin(postdrug_first_heartfailure,
+                      hf_death_date_any_cause,
+                      na.rm=TRUE),
+      
+      # safety outcome: acute pancreatitis
+      acutepancreatitis_outcome=pmin(postdrug_first_acutepancreatitis,
+                                     na.rm=TRUE),
+      
+      # safety outcome: retinopathy
+      retinopathy_outcome=pmin(postdrug_first_retinopathy,
                                na.rm=TRUE),
-           
-           
-           cens_itt_5_yrs=pmin(dstartdate+(365.25*5),
-                               hes_end_date,
-                               gp_end_date,
-                               death_date,
-                               if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
-                               na.rm=TRUE),
-           
-           cens_sens1_3_yrs=pmin(dstartdate+(365.25*3),
-                                 hes_end_date,
-                                 gp_end_date,
-                                 death_date,
-                                 if_else(studydrug1!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
-                                 # censor subjects if starting Su or DPP4 only if in those groups
-                                 if_else(studydrug1=="DPP4", next_su_start, as.Date("2050-01-01")),
-                                 if_else(studydrug1=="SU", next_dpp4_start, as.Date("2050-01-01")),
-                                 na.rm=TRUE),
-           
-           cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
-                                 hes_end_date,
-                                 gp_end_date,
-                                 death_date,
-                                 if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
-                                 dstopdate_class+183,
-                                 na.rm=TRUE),
-           
-           
-           
-           # if eGFR measurement showing a 40% decline is a final measurement, use this
-           egfr40_decline_date = ifelse(
-             is.na(cohort$post_egfr_40_decline_date_next_egfr) | is.null(cohort$post_egfr_40_decline_date_next_egfr),
-             cohort$egfr_40_decline_date,
-             cohort$egfr_40_decline_date_confirmed
-           ),
-           
-           ckd_egfr40_outcome=pmin(egfr40_decline_date,
-                                   postckdstage5date,
-                                   kf_death_date_any_cause,
-                                   na.rm=TRUE),
-           
-
-           ckd_egfr40_outcome_type=ifelse(
-             is.na(ckd_egfr40_outcome), 
-             NA,
-             ifelse(ckd_egfr40_outcome == egfr_40_decline_date, 
-                    "40% eGFR decline",
-                    ifelse(ckd_egfr40_outcome == postckdstage5date, 
-                           "ESKD", 
-                           "Kidney-related death")
-             )
-           ),
-           
-           mace_outcome=pmin(postdrug_first_myocardialinfarction,
-                             postdrug_first_stroke,
-                             cv_death_date_any_cause,
-                             na.rm=TRUE),
-           
-           hf_outcome=pmin(postdrug_first_heartfailure,
-                           hf_death_date_any_cause,
-                           na.rm=TRUE),
-           
-           acutepancreatitis_outcome=pmin(postdrug_first_acutepancreatitis,
-                                          na.rm=TRUE),
-           
-           retinopathy_outcome=pmin(postdrug_first_retinopathy,
-                                    na.rm=TRUE),
-           
-           lowerlimbfracture_outcome=pmin(postdrug_first_lowerlimbfracture,
-                                          na.rm=TRUE),
-           
-           death_outcome=death_date
-           
+      
+      # neutral control outcome: lower limb fracture
+      lowerlimbfracture_outcome=pmin(postdrug_first_lowerlimbfracture,
+                                     na.rm=TRUE),
+      
+      # death (for competing risk analysis)
+      death_outcome=death_date,
+      
+      ## censoring dates
+      
+      # censor primary care records at 2023-03-31
+      gp_end_date=pmin(gp_end_date, as.Date("2023-03-31"), na.rm=TRUE),
+      
+      # ITT censoring date (3 years)
+      cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
+                          hes_end_date,
+                          gp_end_date,
+                          death_date,
+                          if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+                          na.rm=TRUE),
+      
+      # ITT censoring date for sensitivity analysis - extended to 5 years
+      cens_itt_5_yrs=pmin(dstartdate+(365.25*5),
+                          hes_end_date,
+                          gp_end_date,
+                          death_date,
+                          if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+                          na.rm=TRUE),
+      
+      # ITT censoring date for sensitivity analysis treating DPP4i and SU as separate arms
+      cens_sens1_3_yrs=pmin(dstartdate+(365.25*3),
+                            hes_end_date,
+                            gp_end_date,
+                            death_date,
+                            if_else(studydrug1!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+                            # censor subjects if starting Su or DPP4 only if in those groups
+                            if_else(studydrug1=="DPP4", next_su_start, as.Date("2050-01-01")),
+                            if_else(studydrug1=="SU", next_dpp4_start, as.Date("2050-01-01")),
+                            na.rm=TRUE),
+      
+      # PP censoring date (for sensitivity analysis)
+      cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
+                         hes_end_date,
+                         gp_end_date,
+                         death_date,
+                         if_else(studydrug2!="SGLT2 + GLP1", next_glp1_start, as.Date("2050-01-01")),
+                         dstopdate_class+183,
+                         na.rm=TRUE),
+      
     )
   
   

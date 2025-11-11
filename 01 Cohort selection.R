@@ -36,6 +36,7 @@ cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 # [1] "Number of drug episodes removed (e.g. subsequent episode of starting DPP4i/SU after already taking the other): 427"
 # [1] "Number of subjects included: 31650"
 # [1] "Number of drug episodes included: 38642"
+# this number includes "duplicate" drug episodes - these will be removed later on
 
 rm(t2d_1stinstance)
 rm(t2d_all_drug_periods)
@@ -49,30 +50,78 @@ cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival var
 
 rm(list=setdiff(ls(), c("cohort", "today", "vars", "factor_vars", "nonnormal", "main", "outcomes", "n.imp")))
 
-# create acr variable for ckdpc risk scores that uses further source of acr if acr not available
+## set reference group
+# list of studydrug vars
+studydrug_vars <- grep("^studydrug", names(cohort), value = TRUE)
+
+# Loop through studydrug vars and relevel
+for (i in seq_along(studydrug_vars)) {
+  ref_level <- if (i == 1) "SGLT2i + SU" else "SGLT2i + DPP4i/SU"
+  cohort[[studydrug_vars[i]]] <- relevel(as.factor(cohort[[studydrug_vars[i]]]), ref = ref_level)
+}
+
+# create variable for year of treatment initiation
+cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
+cohort$initiation_year <- as.numeric(cohort$initiation_year)
+
+# Set start_year to the minimum year in the data
+start_year <- min(cohort$initiation_year)
+
+# Create a new variable that groups the years into two-year periods
+cohort$initiation_year <- paste0(
+  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year, "/", 
+  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year + 1
+)
+
+
+## prepare dataset for imputation: create other relevant variables and deselect redundant variables 
 cohort <- cohort %>% 
-  mutate(uacr=ifelse(!is.na(preacr), preacr, ifelse(!is.na(preacr_from_separate), preacr_from_separate, NA)),
+  mutate(
+         # coalesce acr and acr_from_separate into single variable
+         uacr=ifelse(!is.na(preacr), preacr, ifelse(!is.na(preacr_from_separate), preacr_from_separate, NA)),
+         # lowest acr value possible is 0.6
          uacr=ifelse(uacr<0.6, 0.6, uacr),
-         #and create variable to code whether someone is on oral hyperglycaemic agents
+         # create additional variables that indicate non-glucose-lowering drug prescriptions
          oha=ifelse(ncurrtx > 1 | ncurrtx == 1 & INS == 0, 1L, 0L),
          statin=!is.na(predrug_latest_statins),
          ACE=!is.na(predrug_latest_ace_inhibitors),
          ARB=!is.na(predrug_latest_arb),
          BB=!is.na(predrug_latest_beta_blockers),
-         finerenone=!is.na(predrug_latest_finerenone),
+         finerenone=!is.na(predrug_latest_finerenone), # all FALSE as finerenone was not in use in the UK until after March 2023
          CCB=!is.na(predrug_latest_ca_channel_blockers),
          ThZD=!is.na(predrug_latest_thiazide_diuretics),
          loopD=!is.na(predrug_latest_loop_diuretics),
          MRA=!is.na(predrug_latest_ksparing_diuretics),
          predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0),
-  )
-
-
-cohort <- cohort %>%
-  #default hba1c variable is from previous 6 months to index date
-  #take hba1c within window of 2 years prior and 7 days post, similar as other biomarkers
-  mutate(prehba1c = prehba1c2yrs) %>%
-  select(patid, malesex, ethnicity_5cat, ethnicity_qrisk2, 
+         # default hba1c variable is from previous 6 months to index date
+         # take hba1c within window of 2 years prior and 7 days post, similar as other biomarkers
+         prehba1c = prehba1c2yrs,
+         # create variables reflecting number of eGFR measurements in 12 months prior to and post drug initiation
+         preegfr_count_12m = coalesce(preegfr_count_12m, 0),
+         egfr_count_12m = coalesce(egfr_count_12m, 0),
+         initiation_year = case_when(
+           initiation_year %in% c("2013/2014", "2015/2016") ~ "2013/2016",
+           TRUE ~ initiation_year),
+         # ethnicity cannot be calculated in the imputation model due to it being a constant variable
+         # furthermore, the number of individuals in the categories "other" and "mixed" are too small - merge into one miscellaneous category
+         ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", as.character(ethnicity_qrisk2)),
+         ethnicity_4cat=ifelse(is.na(ethnicity_5cat) | ethnicity_5cat == "4", "3", as.character(ethnicity_5cat)),
+         ethnicity_4cat=factor(ethnicity_4cat,
+                               levels = c(0, 1, 2, 3),
+                               labels = c("White", "South Asian", "Black", "Other or unknown")),
+         # imd_decile is not a continuous variable - we will categorise this as quintiles
+         imd_decile = ifelse(imd_decile %in% c(1,2), "1/2",
+                      ifelse(imd_decile %in% c(3,4), "3/4",
+                             ifelse(imd_decile %in% c(5,6), "5/6",
+                                    ifelse(imd_decile %in% c(7,8), "7/8",
+                                           ifelse(imd_decile %in% c(9,10), "9/10", NA))))),
+         imd_decile = factor(imd_decile),
+         qrisk2_smoking_cat = factor(qrisk2_smoking_cat),
+         ) %>% 
+         relocate(ethnicity_4cat, .after = last_col()
+         ) %>%
+  # select relevant variables only
+  select(patid, malesex, ethnicity_4cat, ethnicity_qrisk2, 
          imd_decile, tds_2011,
          regstartdate, 
          gp_end_date, death_date, 
@@ -102,65 +151,8 @@ cohort <- cohort %>%
          ThZD, loopD, MRA, 
          ckd_egfr40_outcome_type, with_hes, preacr_confirmed,
          weightresp6m, weightresp12m, preegfr_count_12m, egfr_count_12m,
-         ) %>%
-  mutate(preegfr_count_12m = coalesce(preegfr_count_12m, 0),
-         egfr_count_12m = coalesce(egfr_count_12m, 0))
-
-# set reference group
-studydrug_vars <- grep("^studydrug", names(cohort), value = TRUE)
-
-# Loop through and relevel
-for (i in seq_along(studydrug_vars)) {
-  ref_level <- if (i == 1) "SGLT2i + SU" else "SGLT2i + DPP4i/SU"
-  cohort[[studydrug_vars[i]]] <- relevel(as.factor(cohort[[studydrug_vars[i]]]), ref = ref_level)
-}
-
-# create variable for year of treatment initiation
-cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
-cohort$initiation_year <- as.numeric(cohort$initiation_year)
-
-# Set start_year to the minimum year in the data
-start_year <- min(cohort$initiation_year)
-
-# Create a new variable that groups the years into two-year periods
-cohort$initiation_year <- paste0(
-  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year, "/", 
-  floor((cohort$initiation_year - start_year) / 2) * 2 + start_year + 1
-)
-
-cohort <- cohort %>%
-  mutate(
-    initiation_year = case_when(
-      initiation_year %in% c("2013/2014", "2015/2016") ~ "2013/2016",
-      TRUE ~ initiation_year
-    )
-  )
-
-# ethnicity cannot be calculated in the imputation model due to it being a constant variable
-# for the sake of imputation, we will class missing as a separate category "missing" (5-cat ethnicity: 5; QRISK2: 10)
-cohort <- cohort %>%
-  mutate(ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", as.character(ethnicity_qrisk2)),
-         ethnicity_4cat=ifelse(is.na(ethnicity_5cat) | ethnicity_5cat == "4", "3", as.character(ethnicity_5cat)),
-         ethnicity_4cat=factor(ethnicity_4cat,
-                               levels = c(0, 1, 2, 3),
-                               labels = c("White", "South Asian", "Black", "Other or unknown"))) %>% 
-  relocate(ethnicity_4cat, .after = last_col())
-
-# imd_decile is not a continuous variable - we will categorise this as quintiles
-cohort <- cohort %>% mutate(
-  imd_decile = ifelse(imd_decile %in% c(1,2), "1/2",
-                      ifelse(imd_decile %in% c(3,4), "3/4",
-                             ifelse(imd_decile %in% c(5,6), "5/6",
-                                    ifelse(imd_decile %in% c(7,8), "7/8",
-                                           ifelse(imd_decile %in% c(9,10), "9/10", NA))))),
-  imd_decile = factor(imd_decile),
-  qrisk2_smoking_cat = factor(qrisk2_smoking_cat)
-)
-
-# variable preacr_confirmed indicates whether a person had their presence of albuminuria (3mg/mmol) confirmed on 2 readings
-# this shows as NA if no second reading available to confirm - replace with NA
-cohort <- cohort %>% mutate(preacr_confirmed = ifelse(is.na(preacr_confirmed), F, preacr_confirmed),
-                            preacr_confirmed = ifelse(uacr<3, F, preacr_confirmed))
+         initiation_year,
+         ) 
 
 
 # save dataset
@@ -175,9 +167,11 @@ ini <- mice(cohort, seed = 123, maxit = 0)
 # remove observations if ncurrtx is missing (needs to be fixed in combo_start_stop)
 cohort <- cohort %>% filter(!is.na(ncurrtx))
 
-# there are a couple of variables that we do not need to impute, we can tell mice not to impute these
+# specify imputation method for specific variables in ini$meth
+# default method is predictive mean matching ("pmm")
 meth <- ini$meth
 
+# variables not to be imputed
 meth[c(
   "death_date", 
   "preacr", "last_sglt2_stop", "last_glp1_stop", "preckdstage", 
@@ -193,14 +187,16 @@ meth[c(
        "ckd_egfr40_outcome_type", "preacr_confirmed",
        "weightresp6m", "weightresp12m")] <- ""
 
-# # smoking status and deprivation missing at present
+# set imputation method for smoking status and deprivation as polynomial regression
 meth[c("qrisk2_smoking_cat", "imd_decile")] <- "polyreg"
 
+# ensure weight and height are imputed using "pmm"
 meth[c("preweight", "height")] <- "pmm"
-
+# BMI should not be imputed directly but rather imputed based on weight and height values
 meth["prebmi"] <- "~ I( preweight / (height/100)^2)"
 
-# use quickpred function to build predictor matrix
+## build prediction matrix - which variables will predict imputed values of which missing variables
+# we will use the quickpred function to build the predictor matrix
 # we can specify which variables to definitely include (inlist) and which ones to leave out (outlist)
 
 inlist <- c("malesex",  "dstartdate_age",  "imd_decile",  "tds_2011",            # main sociodemographic factors
@@ -243,6 +239,8 @@ outlist3 <- as.character(ini$loggedEvents[, "out"])
 #combine above variables in one list
 outlist <- unique(c(outlist1, outlist2, outlist3))
 
+
+## make final prediction matrix
 pred <- quickpred(cohort, include = inlist, exclude = outlist)
 
 
@@ -280,7 +278,7 @@ imp <- mice(data = cohort,
             m=n.imp, 
             seed = 123)
 
-#check imputed vs original values
+#check distribution imputed vs original values
 
 density_plot <- densityplot(x = imp, data = ~ imd_decile + prebmi + presbp + pretotalcholesterol +
                               prehba1c + dstartdate_dm_dur_all + qrisk2_smoking_cat + hosp_admission_prev_year)
@@ -303,17 +301,12 @@ temp <- temp %>% mutate(prebmi = ifelse(
 rm(z)
 
 
-# add CKD-PC risk score
-
-temp <- temp %>% filter(!.imp == 0) %>% 
-  mutate(preckdstage=ifelse(is.na(preckdstage), ifelse(preegfr<15, "stage_5", 
-                                                       ifelse(preegfr<30, "stage_4", 
-                                                              ifelse(preegfr<45, "stage_3b", 
-                                                                     ifelse(preegfr<60, "stage_3a", 
-                                                                            ifelse(preegfr<90, "stage_2", 
-                                                                                   "stage_1"))))), preckdstage),
-         
-         black_ethnicity=ifelse(!is.na(ethnicity_qrisk2) & (ethnicity_qrisk2 == 6 | ethnicity_qrisk2 == 7), 
+## add CKD-PC risk score
+# add variables for risk score calculation
+temp <- temp %>% 
+  # remove un-imputed dataset
+  filter(!.imp == 0) %>% 
+  mutate(black_ethnicity=ifelse(!is.na(ethnicity_qrisk2) & (ethnicity_qrisk2 == 6 | ethnicity_qrisk2 == 7), 
                                 1L, 
                                 ifelse(is.na(ethnicity_qrisk2), NA, 0L)),
          
@@ -344,12 +337,10 @@ temp <- temp %>% filter(!.imp == 0) %>%
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/Functions/")
-
 source("calculate_ckdpc_40egfr_risk.R")
 
 temp <- temp %>%
   mutate(sex=ifelse(malesex == T, "male", ifelse(malesex==F, "female", NA))) %>%
-  
   calculate_ckdpc_40egfr_risk(age=dstartdate_age,
                               sex=sex,
                               egfr=preegfr,
@@ -370,28 +361,36 @@ temp <- temp %>%
 
 # tidy variables
 temp <- temp %>% mutate(
+  # simplify smoking status for covariates
   smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
+  # coalesce ACE or ARB use into variable reflecting RAASi use
   ACE_or_ARB = ifelse(temp$ACE + temp$ARB > 0, T, F),
+  # categorise number of current glucose-lowering treatments
   ncurrtx2 = ncurrtx,
   ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx == 3, "3.", "4+"))),
   ncurrtx = relevel(as.factor(ncurrtx), ref = "3."),
+  # categorise eFI for table
   predrug_efi_cat = case_when(
     predrug_efi_score < 0.12 ~ "fit",
     predrug_efi_score >= 0.12 & predrug_efi_score < 0.24 ~ "mild",
     predrug_efi_score >= 0.24 & predrug_efi_score < 0.36 ~ "moderate",
     predrug_efi_score >= 0.36 ~ "severe"
   ),
+  # variable to represent prior history of pancreatitis
   predrug_pancreatitis = ifelse(predrug_acutepancreatitis == T | predrug_chronicpancreatitis == T, T, F),
+  # weight change variables
   weight_pct_change_6m = weightresp6m / preweight * 100,
   weight_pct_change_12m = weightresp12m / preweight * 100,
   weight_pct_change = ifelse(is.na(weight_pct_change_12m), weight_pct_change_6m, weight_pct_change_12m),
   across(starts_with("studydrug"), as.factor),
+  # categories of eGFR and albuminuria
   egfr_cat = ifelse(preegfr < 60, "<60", "≥60"),
   egfr_cat = factor(egfr_cat),
   albuminuria_cat = ifelse(uacr >=30, "≥30", ifelse(uacr > 3, "3-30", "<3")),
   albuminuria_cat = factor(albuminuria_cat),
   albuminuria_cat2 = ifelse(uacr >=3, "≥3", "<3"),
   albuminuria_cat2 = factor(albuminuria_cat2),
+  # categorise eGFR counts for table
   preegfr_count_12m_cat = ifelse(preegfr_count_12m >= 4, "≥4", as.character(preegfr_count_12m)),
   egfr_count_12m_cat = ifelse(egfr_count_12m >= 4, "≥4", as.character(egfr_count_12m)))
 
@@ -407,16 +406,15 @@ rm(p)
 q <- temp %>% .$patid %>% unique() %>% length()
 # print(paste0("Number of subjects in study population ", q))
 
-
+# remove duplicate episodes
 studydrug_var = paste0("studydrug", main)
-# save imputed dataset so this can be used in the subsequent scripts
 temp <- temp  %>%
   group_by(.imp, patid, !!sym(studydrug_var)) %>% 
   arrange(dstartdate) %>% 
   filter(!duplicated(!!sym(studydrug_var))) %>% 
   ungroup()
 
-
+# save imputed dataset so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
 save(temp, file=paste0(today, "_t2d_glp1_imputed_data.Rda"))
 
@@ -434,7 +432,7 @@ for (m in 1:n.studydrug.vars) {
   
   tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, smd = T, printToggle = T)
   
-  ## save
+  # save
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   write.csv2(tabforprint, file = paste0(today, "_baseline_table_studydrug", m, ".csv"))
   
@@ -443,7 +441,7 @@ for (m in 1:n.studydrug.vars) {
 
 # events rates (sum of events divided by sum of person-years) by studydrug
 
-# empty data frame
+# prep empty data frame
 event_rates <- data.frame(
   studydrug_var = character(),
   drug_level = character(),
@@ -478,6 +476,7 @@ for (m in 1:n.studydrug.vars) {
     }
     
     if (m == 1) {
+      # use different censoring variables for studydrug1 (censoring if starting DPP4i or SU if not in that respective arm)
       k <- paste0(k, "_sens1")
     }
  
@@ -495,7 +494,7 @@ for (m in 1:n.studydrug.vars) {
       
       event_1000yrs <- round(events / pyears * 1000, 1)
       
-      # Store result instead of printing
+      # store result
       event_rates <- rbind(
         event_rates,
         data.frame(

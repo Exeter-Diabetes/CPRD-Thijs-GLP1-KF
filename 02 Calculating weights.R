@@ -28,9 +28,13 @@ for (m in 1:n.studydrug.vars) {
     select("patid", ".imp", contains("studydrug"), all_of(covariates), "dstartdate", "predrug_pancreatitis", "predrug_retinopathy", "with_hes", "ncurrtx2", "weight_pct_change")
   
   # create empty variables for weights
-  temp[[paste0("IPTW", m, collapse = "")]] <- temp[[paste0("overlap", m, collapse = "")]] <- temp[[paste0("ps", m, collapse = "")]] <- 
+  temp[[paste0("IPTW", m, collapse = "")]] <-  # IPTW
+    temp[[paste0("overlap", m, collapse = "")]] <- # overlap weights
+    temp[[paste0("ps", m, collapse = "")]] <- # raw propensity scores
+    # weights for subsets without prior retinopathy / pancreatitis
     temp[[paste0("IPTW", m, "_retinopathy", collapse = "")]] <- temp[[paste0("overlap", m, "_retinopathy", collapse = "")]] <- NA
   
+  # remove duplicate drug episodes
   temp <- temp %>% 
     group_by(.imp, patid, !!sym(studydrug_var)) %>% 
     arrange(dstartdate) %>% 
@@ -93,15 +97,15 @@ for (m in 1:n.studydrug.vars) {
     gc()
   }
   
-  ## check distribution of overlap weights - save plot
+  ## check distribution of propensity score before and after overlap weighting 
   studydrug_var <- paste0("studydrug", m)
   weights_overlap <- paste0("overlap", m)
   ps_var <- paste0("ps", m)
   
-  
+  # prep data for plot
   weight_plot_data <- temp %>% 
     group_by(.imp, !!sym(studydrug_var)) %>%
-    mutate(weight_before = 1 / n(),                         # overlap weights are proportional to total number in group; standardise unweighted observations similarly to get proportion
+    mutate(weight_before = 1 / n(), # overlap weights are proportional to total number in group; standardise unweighted observations similarly to get proportion
            weight_after  = !!sym(weights_overlap)) %>%
     ungroup() %>%
     select(weight_before, weight_after, !!sym(ps_var), !!sym(studydrug_var)) %>%
@@ -114,6 +118,7 @@ for (m in 1:n.studydrug.vars) {
            stage = as.factor(stage),
            stage = relevel(stage, ref = "Before weighting"))
   
+  # histogram with propensity score by treatment arm before and after weighting
   weight_plot <- ggplot(weight_plot_data, aes(x = !!sym(ps_var), fill = !!sym(studydrug_var))) +
     geom_histogram(data = weight_plot_data %>% filter(stage == "Before weighting"),
                    aes(weight = weight), alpha = 0.5, colour = "grey20", bins = 30, position = "identity") +
@@ -131,14 +136,15 @@ for (m in 1:n.studydrug.vars) {
           panel.grid.minor = element_blank(),
           panel.background = element_blank()) 
   
+  #save plot
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
   tiff(paste0(today, "_propensity_score_distribution_plot_", m, ".tiff"), width=8, height=5, units = "in", res=800)
   print(weight_plot)
   dev.off()
   
-  # calculate separate weights for subset without retinopathy for outcomes pancreatitis and diabetic retinopathy
+  # calculate separate weights for subset without prior retinopathy / pancreatitis for outcomes pancreatitis and diabetic retinopathy
   
-  # ---- retinopathy
+  ## retinopathy
   temp_no_retinopathy <- temp %>% filter(predrug_retinopathy == F)
   temp_retinopathy <- temp %>% filter(predrug_retinopathy == T)
   
@@ -177,7 +183,7 @@ for (m in 1:n.studydrug.vars) {
   rm(temp_retinopathy)
   rm(temp_no_retinopathy)
   
-  # ----- pancreatitis
+  ## pancreatitis
   
   temp_no_pancreatitis <- temp %>% filter(predrug_pancreatitis == F)
   temp_pancreatitis <- temp %>% filter(predrug_pancreatitis == T)
@@ -265,6 +271,9 @@ rm(temp_all)
 
 
 ############################3 WEIGHTED BASELINE TABLE################################################################
+
+# factor and nonnormal variables are already specified as factor_vars and nonnormal
+# specify which ones are continuous and normally distributed
 continuous_vars <- setdiff(vars, factor_vars)
 normal_vars <- setdiff(continuous_vars, nonnormal)
 
@@ -280,6 +289,7 @@ for (m in 1:n.studydrug.vars) {
   treat_var <- sym(studydrug_var)
   weight_var <- sym(weights_overlap)
   
+  # write function to get weighted table
   weighted_summary <- function(data, varname, weight = NULL, group, type = "normal") {
     
     if (is.null(weight)) {
@@ -313,8 +323,6 @@ for (m in 1:n.studydrug.vars) {
         select({{group}}, stat)
     }
   }
-  
-  
   
   
   weighted_table_cat <- function(data, varname, weight = NULL, group) {
@@ -435,6 +443,7 @@ for (m in 1:n.studydrug.vars) {
   for (q in levels(cohort[[studydrug_var]])) {
     
     table1 <- table1 %>% 
+      # multiply weighted proportions with treatment group size and adjust for n.imp
       mutate(
         extracted_value = as.numeric(str_extract(!!sym(q), "^[0-9\\.]+")),
         N   = round(extracted_value / n.imp * nrow(cohort[cohort[[studydrug_var]] == q,])/n.imp, 2),

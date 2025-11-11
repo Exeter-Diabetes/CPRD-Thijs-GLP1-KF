@@ -62,10 +62,6 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     filter(
       (drug_class_start == 0 & grepl("tide", drug_substance, ignore.case = T)) | drug_class_start == 1
     ) %>% mutate(
-      # create other variables to define study drug: 
-      # create combination group for dual therapy with SGLT2i and GLP1-RA (studydrug1)
-      ## combine DPP4i/SU as one group (studydrug2) 
-      ## create distinct level for dulaglutide / sc semaglutide semaglutide vs other GLP1-RAs (studydrug3)
       studydrug1 = ifelse(studydrug1 == "GLP1-RA",
                           "SGLT2i + GLP1-RA", ifelse(studydrug1 == "DPP4i", "SGLT2i + DPP4i", "SGLT2i + SU")),
       studydrug2 = ifelse(studydrug1 != "SGLT2i + GLP1-RA", "SGLT2i + DPP4i/SU", "SGLT2i + GLP1-RA"))
@@ -95,7 +91,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
       !(is.na(preckdstage) & is.na(preegfr))
     )
   
-  # h) Remove if ESKD before index date or eGFR <60
+  # h) Remove if ESKD before index date or eGFR <20
   
   q <- cohort %>% filter(preckdstage=="stage_5" | predrug_ckd5_code == 1 | preegfr < 20) %>% nrow()
   
@@ -133,21 +129,6 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   rm(q)
   
-  ## Use all SGLT2i, GLP1-RA, DPP4i, and SU starts to code up later censoring
-  
-  #
-  ### Also get latest GLP1-RA and SGLT2i stop dates before drug start for DPP4i/SU arms 
-  
-  later_sglt2 <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(drug_class=="SGLT2") %>%
-                  select(patid, next_sglt2=dstartdate)), by="patid") %>%
-    filter(next_sglt2>dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(next_sglt2_start=min(next_sglt2, na.rm=TRUE)) %>%
-    ungroup()
-  
   later_dpp4 <- cohort %>%
     select(patid, dstartdate) %>%
     inner_join((all_drug_periods_dataset %>%
@@ -178,16 +159,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     summarise(next_glp1_start=min(next_glp1, na.rm=TRUE)) %>%
     ungroup()
   
-  last_sglt2_stop <- cohort %>%
-    select(patid, dstartdate) %>%
-    inner_join((all_drug_periods_dataset %>%
-                  filter(drug_class=="SGLT2") %>%
-                  select(patid, last_sglt2=dstopdate_class)), by="patid") %>%
-    filter(last_sglt2<dstartdate) %>%
-    group_by(patid, dstartdate) %>%
-    summarise(last_sglt2_stop=min(last_sglt2, na.rm=TRUE)) %>%
-    ungroup()
-  
+
   last_dpp4_stop <- cohort %>%
     select(patid, dstartdate) %>%
     inner_join((all_drug_periods_dataset %>%
@@ -220,11 +192,9 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   
   cohort <- cohort %>%
-    left_join(later_sglt2, by=c("patid", "dstartdate")) %>%
     left_join(later_dpp4, by=c("patid", "dstartdate")) %>%
     left_join(later_su, by=c("patid", "dstartdate")) %>%
     left_join(later_glp1, by=c("patid", "dstartdate")) %>%
-    left_join(last_sglt2_stop, by=c("patid", "dstartdate")) %>%
     left_join(last_dpp4_stop, by=c("patid", "dstartdate")) %>%
     left_join(last_su_stop, by=c("patid", "dstartdate")) %>%
     left_join(last_glp1_stop, by=c("patid", "dstartdate")) 
