@@ -438,6 +438,10 @@ for (m in 1:n.studydrug.vars) {
   
 }
 
+## get summary of weight change at 6 / 12 months for studydrug2 variable
+temp %>% filter(studydrug2 == "SGLT2i + GLP1-RA") %>% .$weight_pct_change %>% summary()
+temp %>% filter(studydrug2 != "SGLT2i + GLP1-RA") %>% .$weight_pct_change %>% summary()
+
 
 # events rates (sum of events divided by sum of person-years) by studydrug
 
@@ -516,4 +520,16 @@ for (m in 1:n.studydrug.vars) {
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
 write.csv2(event_rates, paste0(today, "_event_rates_table.csv"), row.names = FALSE)
 
+# give split of event types for ckd_egfr40
+temp %>% filter(.imp == n.imp) %>% 
+  filter(ckd_egfr40_censvar == 1) %>% 
+  .$ckd_egfr40_outcome_type %>% 
+  as.factor() %>%
+  summary()
 
+## No of confirmed vs 40% at end
+temp %>% filter(.imp == n.imp) %>% 
+  filter(ckd_egfr40_censvar == 1 & ckd_egfr40_outcome_type == "40% eGFR decline") %>% 
+  .$post_egfr_40_decline_date_next_egfr %>% 
+  is.na() %>% 
+  summary()

@@ -270,7 +270,7 @@ for (r in 1:5) {
         print(paste0("Analyses in imputed dataset number ", i))
         
         #overlap weighted model only
-        fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+        fit.ow <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
  
         #store coefficients and standard errors from this model
         for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
@@ -380,3 +380,129 @@ for (r in 1:5) {
   rm(hrs)
   rm(cohort)
 }
+
+
+############################2 POST-HOC ANALYSIS: ABSOLUTE RISK DIFFERENCE################################################################
+
+
+k  <- "ckd_egfr40"
+censvar_var  <- paste0(k, "_censvar")
+censtime_var <- paste0(k, "_censtime_yrs")
+
+studydrug_var   <- paste0("studydrug", main)
+weights_overlap <- paste0("overlap", main)
+
+outcome_variables <- paste0("(", paste("ckd_egfr40", collapse = "|"), ")(?!.*(5y|sens|pp)).*(_censtime_yrs|_censvar)$")
+
+
+cohort <- cohort %>%
+  mutate(across(contains("predrug_"), as.logical),
+         # hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
+         INS=as.logical(INS),
+         MFN=as.logical(MFN),
+         malesex=as.factor(malesex),
+         initiation_year=as.factor(initiation_year))  %>%
+  #select relevant variables only
+  select(patid, .imp, !!sym(studydrug_var), !!sym(weights_overlap),
+         matches(outcome_variables, perl = TRUE), 
+         all_of(covariates)) 
+
+
+print(paste0("Starting G-computation of absolute risk difference for outcome: ", k))
+
+# Ensure studydrug variable is factor variable
+cohort[[studydrug_var]] <- as.factor(cohort[[studydrug_var]])
+drug_levels <- levels(cohort[[studydrug_var]])
+
+# Formula for double-robust model
+f_adjusted <- as.formula(
+  paste0("Surv(", censtime_var, ", ", censvar_var, ") ~ ", 
+         studydrug_var, " + ", paste(covariates, collapse = " + "))
+)
+
+# Create empty vectors to store risks and their SEs per imputation
+# G-computation requires storing the risk and its variance from each imputed set
+assign(paste0("arr_imp.", k), rep(NA, n.imp))
+assign(paste0("arr_se.", k),  rep(NA, n.imp))
+
+for (i in 1:n.imp) {
+  print(paste0("ARD calculation for imputation ", i, " of ", n.imp))
+  
+  # Fit the doubly robust outcome model
+  fit <- coxph(f_adjusted, 
+               data = cohort %>% filter(.imp == i), 
+               weights = cohort[cohort$.imp == i,][[weights_overlap]])
+  
+  # Counterfactual 1: Everyone Treated (GLP1-RA)
+  sf1 <- survfit(fit, 
+                 newdata = cohort %>% filter(.imp == i) %>% mutate(!!sym(studydrug_var) := drug_levels[2]), 
+                 weights = cohort[cohort$.imp == i,][[weights_overlap]])
+  
+  s1_val <- weighted.mean(summary(sf1, times = 3)$surv, 
+                          cohort[cohort$.imp == i,][[weights_overlap]], 
+                          na.rm = TRUE)
+  
+  # Counterfactual 0: Everyone Untreated (DPP4i/SU)
+  sf0 <- survfit(fit, 
+                 newdata = cohort %>% filter(.imp == i) %>% mutate(!!sym(studydrug_var) := drug_levels[1]), 
+                 weights = cohort[cohort$.imp == i,][[weights_overlap]])
+  
+  s0_val <- weighted.mean(summary(sf0, times = 3)$surv, 
+                          cohort[cohort$.imp == i,][[weights_overlap]], 
+                          na.rm = TRUE)
+  
+  # Calculate risk difference for this imputation
+  # (1-s1) - (1-s0)
+  arr_val <- (1 - s1_val) - (1 - s0_val)
+  
+  # Extract SE for the difference (standard error of the survival estimate)
+  # Using the delta method logic or simple combined SE
+  
+  se_val <- sqrt(
+    (sum(cohort[cohort$.imp == i,][[weights_overlap]]^2 * summary(sf0, times = 3)$std.err^2, na.rm = TRUE) / sum(cohort[cohort$.imp == i,][[weights_overlap]], na.rm = TRUE)^2) + 
+      (sum(cohort[cohort$.imp == i,][[weights_overlap]]^2 * summary(sf1, times = 3)$std.err^2, na.rm = TRUE) / sum(cohort[cohort$.imp == i,][[weights_overlap]], na.rm = TRUE)^2)
+  )  
+  
+  # assign names and store
+  arr_vec <- get(paste0("arr_imp.", k))
+  arr_vec[i] <- arr_val
+  assign(paste0("arr_imp.", k), arr_vec)
+  
+  se_vec <- get(paste0("arr_se.", k))
+  se_vec[i] <- se_val
+  assign(paste0("arr_se.", k), se_vec)
+  
+  rm(sf1, sf0, fit, arr_vec, se_vec)
+  if(i %% 10 == 0) gc() 
+}
+
+# save results
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Processed data/")
+save(arr_imp.ckd_egfr40, file=paste0(today, "_arr.Rda"))
+save(arr_se.ckd_egfr40, file=paste0(today, "_arr_se.Rda"))
+
+
+# pool results using Rubin's rules
+COEFS <- get(paste0("arr_imp.", k))
+SE    <- get(paste0("arr_se.", k))
+
+mean.coef <- mean(COEFS)
+W <- mean(SE^2)
+B <- var(COEFS)
+T.var <- W + (1+1/n.imp)*B
+se.coef <- sqrt(T.var)
+
+# calculate confidence intervals
+LB.CI <- mean.coef - (se.coef*1.96)
+UB.CI <- mean.coef + (se.coef*1.96)
+
+# summary of results
+ard_results <- data.frame(
+  outcome = k,
+  ARD     = mean.coef,
+  LB      = LB.CI,
+  UB      = UB.CI,
+  NNT     = 1 / abs(mean.coef)
+)
+
+print(ard_results)

@@ -23,7 +23,6 @@ studydrug_var = paste0("studydrug", main)
 load(paste0(today, "_t2d_glp1_imputed_data_withweights_studydrug", main, ".Rda"))
 
 ############################1 CUMULATIVE INCIDENCE CURVES################################################################
-
 ## primary outcome
 k = "ckd_egfr40"
 censvar_var=paste0(k, "_censvar")
@@ -77,9 +76,9 @@ cif_unadj <- ggsurvplot(
   tables.y.text.col = T,
   tables.theme = theme_cleantable(),
   xlab = "Follow-up time (years)",
-  ylab = "Cumulative incidence",
-  title = "Cumulative incidence curves of composite kidney outcome",
-  subtitle = "(≥40% eGFR decline/ESKD)"
+  ylab = "Cumulative incidence of\nkidney disease progression",
+  title = "",
+  subtitle = ""
 )
 
 # cumulative incidence curve of weighted data
@@ -98,7 +97,7 @@ cif_ow <- ggsurvplot(
   font.x = 12,
   font.y = 12,
   
-  legend = c(0.8, 0.15),
+  legend = c(0.8, 0.2),
   break.y.by = 0.01,
   ylim = c(0, 0.05),
   censor.size = 1,
@@ -111,15 +110,41 @@ cif_ow <- ggsurvplot(
   tables.y.text.col = T,
   tables.theme = theme_cleantable(),
   xlab = "Follow-up time (years)",
-  ylab = "Cumulative incidence",
-  title = "Overlap-weighted cumulative incidence curves by treatment",
-  subtitle = "Composite of ≥40% eGFR decline or ESKD"
+  ylab = "Cumulative incidence of\nkidney disease progression",
+  title = "",
+  subtitle = ""
 )
 
 # add unweighted risk table to plot
-cif_ow$plot <- cif_ow$plot + coord_cartesian(xlim = c(0.12, 2.9), ylim = c(0,0.03))
+cif_ow$plot <- cif_ow$plot + coord_cartesian(xlim = c(0.12, 2.9), ylim = c(0,0.035))
 cif_ow$table <- cif_unadj$table + theme(plot.title = element_text(size = 12))
 cif_ow$cumevents <- cif_unadj$cumevents + theme(plot.title = element_text(size = 12))
+
+# add unweighted n censored to plot
+# raw data shows everyone censored at t=3 -> fix this
+cif_unadj$table@data <- cif_unadj$table@data %>%
+  group_by(strata) %>%
+  mutate(
+    total_n = max(n.risk),
+    cum.n.censor = total_n - n.risk - cum.n.event,
+    
+    cum.n.censor = pmax(0, cum.n.censor),
+    
+    n.censor = c(0, diff(cum.n.censor))
+  ) %>%
+  mutate(n.censor = ifelse(time == 0, 0, n.censor),
+         llabels = paste0(n.risk, " (", cum.n.censor, ")")) %>%
+  ungroup()
+
+cif_ow$table <- cif_unadj$table + theme(plot.title = element_text(size = 12)) 
+
+# manually override plot layers to use updated data
+cif_ow$table@layers[[1]]$data <- cif_ow$table@data
+cif_ow$table@mapping[[3]] <- quote(llabels)
+cif_ow$table@layers[[1]]$mapping$label <- quote(llabels)
+
+cif_ow$table@labels$title <- "Number at risk (number censored)"
+
 
 HR <- hrs %>% filter(outcome == k, variable == studydrug_var, analysis == "ow", contrast == "SGLT2i + GLP1-RA vs SGLT2i + DPP4i/SU") %>% .$HR  
 LB <- hrs %>% filter(outcome == k, variable == studydrug_var, analysis == "ow", contrast == "SGLT2i + GLP1-RA vs SGLT2i + DPP4i/SU") %>% .$LB 
@@ -127,12 +152,12 @@ UB <- hrs %>% filter(outcome == k, variable == studydrug_var, analysis == "ow", 
 
 p_value <- 2 * (1 - pnorm(abs(log(HR) / ((log(UB) - log(LB)) / (2 * 1.96)))))
 
-cif_text <- data.frame(x = 0.25, y = 0.02, lab = paste0("HR ", sprintf("%.2f", HR), " (95% CI ", sprintf("%.2f", LB), ", ", sprintf("%.2f", UB), ")\np=", sprintf("%.2f", p_value)))
+cif_text <- data.frame(x = 0.25, y = 0.02, lab = paste0("HR* ", sprintf("%.2f", HR), " (95% CI ", sprintf("%.2f", LB), ", ", sprintf("%.2f", UB), ")\np=", format(signif(p_value, digits = 2), scientific = FALSE)))
 
 # add hazard ratio + p value as text
 cif_ow$plot$layers[[length(cif_ow$plot$layers) + 1]] <- layer(geom="text", position = "identity", stat = "identity", 
-                                                          mapping = aes(x = x, y = y, label = lab, hjust = 0), data = cif_text,
-                                                          params = list(size = 4.5, colour = "black"))
+                                                              mapping = aes(x = x, y = y, label = lab, hjust = 0), data = cif_text,
+                                                              params = list(size = 4.5, colour = "black"))
 
 # remove white square behind legend
 cif_ow$plot <- cif_ow$plot + theme(
@@ -140,15 +165,65 @@ cif_ow$plot <- cif_ow$plot + theme(
   legend.box.background = element_rect(fill = "transparent", colour = NA)
 )
 
+my_breaks <- c(0, 0.01, 0.02, 0.03, 1.0)
+
+cif_ow$plot <- cif_ow$plot + 
+  scale_y_continuous(
+    limits = c(0, 0.045), 
+    breaks = my_breaks,
+    # This applies % formatting to exactly the breaks we defined
+    labels = scales::percent(my_breaks, accuracy = 1) 
+  ) +
+  coord_cartesian(ylim = c(0, 0.033), xlim = c(0, 3), clip = "off") +
+  
+  # fake y axis
+  annotation_custom(grid::linesGrob(),
+                    xmin = -0.15, xmax = -0.15, ymin = -0.0015, ymax = 0.04) +
+  
+  # tick for 100%
+  annotation_custom(grid::linesGrob(),
+                    xmin = -0.17, xmax = -0.15, ymin = 0.04, ymax = 0.04) +
+  
+  # text for 100%
+  annotation_custom(grid::textGrob(label = "100%", 
+                                   gp = grid::gpar(fontsize = 12, col = "black")),
+                    xmin = -0.28, xmax = -0.28, ymin = 0.04, ymax = 0.04) +
+  
+  # gap annotation
+  annotation_custom(grid::rectGrob(gp = grid::gpar(fill = "white", col = NA)),
+                    xmin = -0.2, xmax = -0.1, ymin = 0.034, ymax = 0.036) +
+  annotation_custom(grid::linesGrob(),
+                    xmin = -0.18, xmax = -0.12, ymin = 0.035, ymax = 0.037) +
+  annotation_custom(grid::linesGrob(),
+                    xmin = -0.18, xmax = -0.12, ymin = 0.033, ymax = 0.035) +
+  
+  # remove old y axis
+  theme(axis.line.y = element_blank()) +
+  
+  # create extra padding at the right hand side so the n.risk/n.censored doesn't fall off the graph
+  theme(plot.margin = margin(t = 5, r = 10, b = 5, l = 5, unit = "pt"))
+
+cif_ow$table@theme$plot.margin <- margin(t=5, r=10, b = 5, l = 5, unit = "pt")
+cif_ow$cumevents@theme$plot.margin <- margin(t=5, r=10, b = 5, l = 5, unit = "pt")
+# turn clipping off
+cif_ow$table@coordinates$clip <- cif_ow$table@coordinates$clip <- "off"
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-tiff(paste0(today, "_cumulative_incidence_curves_", k, ".tiff"), width=7.5, height=6, units = "in", res=800)
+tiff(paste0(today, "_cumulative_incidence_curves_", k, ".tiff"), width=8.5, height=6.5, units = "in", res=800)
 print(cif_ow)
 dev.off()
 
 
-# get E value for main outcome
-library(EValue)
-evalues.HR(HR, LB, UB, rare = T)
+
+
+cairo_pdf(paste0(today, "_cumulative_incidence_", k, ".pdf"), 
+          width = 8.5, 
+          height = 6.5, 
+          family = "Arial")
+
+print(cif_ow)
+
+dev.off()
 
 ############################2 FOREST PLOT FOR SECONDARY OUTCOMES################################################################
 
@@ -158,8 +233,8 @@ hrs <- hrs %>% filter(!grepl("interaction", variable))
 
 n.studydrug.vars <- hrs %>% .$variable %>% as.factor() %>% nlevels()
 
-drug_reference = levels(cohort[[studydrug_var]])[1]
-drug_of_interest = levels(cohort[[studydrug_var]])[2]
+drug_reference = levels(as.factor(cohort[[studydrug_var]]))[1]
+drug_of_interest = levels(as.factor(cohort[[studydrug_var]]))[2]
 
 # Collect datasets across outcomes
 # subset to outcome k and the current studydrug variable
@@ -207,7 +282,7 @@ heading <- tibble(
   outcome = "Outcome",
   drug = "",
   HR = NA_real_, LB = NA_real_, UB = NA_real_,
-  string = "HR (95% CI)",
+  string = "HR* (95% CI)",
   treated_nN = paste0(drug_of_interest, " (n/N)"),
   ref_nN = paste0(drug_reference, " (n/N)")
 )
@@ -288,7 +363,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
                      breaks = c(0.5, 0.75, 1, 1.5, 2.0),
                      limits = c(xmin, xmax)) +
   scale_y_continuous(NULL, breaks = NULL) +
-  labs(x = "HR (95% CI)", y = NULL) +
+  labs(x = "Hazard ratio", y = NULL) +
   theme_classic() +
   theme(
     panel.grid = element_blank(),
@@ -322,60 +397,48 @@ dev.off()
 
 
 ############################3 FOREST PLOT BY FACTORS################################################################
-
-drug_reference = levels(cohort[[studydrug_var]])[1]
-drug_of_interest = levels(cohort[[studydrug_var]])[2]
-
+# setup variables
+drug_reference = levels(as.factor(cohort[[studydrug_var]]))[1]
+drug_of_interest = levels(as.factor(cohort[[studydrug_var]]))[2]
 k = "ckd_egfr40"
-
-factors <- c("malesex", "white_ethnicity", "low_egfr", "albuminuria", "predrug_cvd", "predrug_heartfailure")
-
+# prepare data for subgroup hrs
+overall_row <- hrs %>%
+  filter(analysis == "ow", outcome == k, variable == paste0("studydrug", main))
+overall_treated_nN <- overall_row %>% filter(!is.na(HR)) %>% pull(nN)
+overall_ref_nN <- overall_row %>% filter(is.na(HR)) %>% pull(nN)
+plot_overall <- overall_row %>%
+  filter(!is.na(HR)) %>%
+  mutate(
+    factor_label = "Overall",
+    condition_label = "Overall",
+    treated_nN = overall_treated_nN,
+    ref_nN = overall_ref_nN
+  ) %>%
+  select(outcome, factor_label, condition_label, HR, LB, UB, string, treated_nN, ref_nN)
+# prepare subgroup data
 factor_hrs$condition_label <- case_when(
   factor_hrs$factor == "malesex" & factor_hrs$condition == TRUE ~ "Male",
   factor_hrs$factor == "malesex" & factor_hrs$condition == FALSE ~ "Female",
-  
   factor_hrs$factor == "white_ethnicity" & factor_hrs$condition == TRUE ~ "White",
   factor_hrs$factor == "white_ethnicity" & factor_hrs$condition == FALSE ~ "Non-white",
-  
   factor_hrs$factor == "low_egfr" & factor_hrs$condition == TRUE ~ "<60 mL/min per 1.73m²",
   factor_hrs$factor == "low_egfr" & factor_hrs$condition == FALSE ~ "≥60 mL/min per 1.73m²",
-  
   factor_hrs$factor == "albuminuria" & factor_hrs$condition == TRUE ~ "<3 mg/mmol",
   factor_hrs$factor == "albuminuria" & factor_hrs$condition == FALSE ~ "≥3 mg/mmol",
-  
   factor_hrs$factor == "predrug_cvd" & factor_hrs$condition == TRUE ~ "Present",
   factor_hrs$factor == "predrug_cvd" & factor_hrs$condition == FALSE ~ "Absent",
-  
   factor_hrs$factor == "predrug_heartfailure" & factor_hrs$condition == TRUE ~ "Present",
   factor_hrs$factor == "predrug_heartfailure" & factor_hrs$condition == FALSE ~ "Absent",
-  
   TRUE ~ NA_character_
-) 
-
-# Filter to the CKD outcome only
+)
 temp <- factor_hrs %>%
-  filter(analysis == "ow",
-         outcome == k,
-         variable == paste0("studydrug", main)) %>%
+  filter(analysis == "ow", outcome == k, variable == paste0("studydrug", main)) %>%
   mutate(HR = ifelse(is.na(string), 1, HR),
          string = ifelse(is.na(string), "1.00 (ref.)", as.character(string)))
-
-temp[c("outcome","contrast","variable","analysis")] <-
-  lapply(temp[c("outcome","contrast","variable","analysis")], factor)
-
-# Extract drug labels
 temp$drug <- as.factor(sub(" vs.*", "", temp$contrast))
-temp <- temp %>%
-  mutate(drug = factor(drug, levels = c(drug_reference, drug_of_interest)))
-
-# Get ref n/N (same as main code)
-ref_nN_val <- temp %>%
-  filter(drug == drug_reference) %>%
-  pull(nN) %>% unique() %>% .[!is.na(.)]
+ref_nN_val <- temp %>% filter(drug == drug_reference) %>% pull(nN) %>% unique() %>% .[!is.na(.)]
 if (length(ref_nN_val) == 0) ref_nN_val <- NA_character_
-
-# Keep only treated rows and add ref_nN
-plot_df <- temp %>%
+plot_subgroups <- temp %>%
   filter(drug != drug_reference) %>%
   mutate(treated_nN = nN,
          ref_nN = ref_nN_val,
@@ -385,128 +448,148 @@ plot_df <- temp %>%
                                "low_egfr" = "eGFR",
                                "albuminuria" = "uACR",
                                "predrug_cvd" = "Atherosclerotic CVD",
-                               "predrug_heartfailure" = "Heart failure",
-         ))
+                               "predrug_heartfailure" = "Heart failure"))
 
-# Create the global header row 
-header <- tibble(
-  outcome = "Header",
-  factor_label = " Header",
-  condition_label = "≥40% eGFR decline/ESKD",
-  HR = NA_real_, LB = NA_real_, UB = NA_real_,
-  string = "HR (95% CI)",
-  treated_nN = paste0(drug_of_interest, " (n/N)"),
-  ref_nN = paste0(drug_reference, " (n/N)")
-)
 
-# Create subgroup heading rows (no n/N titles here) 
-heading_rows <- plot_df %>%
+# create heading rows for each subgroup
+heading_rows <- plot_subgroups %>%
   group_by(factor_label) %>%
   summarise() %>%
+  mutate(HR = NA_real_, LB = NA_real_, UB = NA_real_, string = "", treated_nN = "", ref_nN = "") %>%
   mutate(
-    HR = NA_real_, LB = NA_real_, UB = NA_real_,
-    string = "",
-    treated_nN = "",
-    ref_nN = "",
-    condition_label = factor_label,
-    condition_label = paste0(
-      factor_label, 
-      " (p=", 
-      sprintf("%.2f", round(factor_hrs$p_value_interaction[match(factor_label, recode(
-        factor_hrs$factor,
-        "malesex" = "Sex",
-        "white_ethnicity" = "Ethnicity",
-        "low_egfr" = "eGFR",
-        "albuminuria" = "uACR",
-        "predrug_cvd" = "Atherosclerotic CVD",
-        "predrug_heartfailure" = "Heart failure",
-      ))], 2)), 
-      ")"
-    )
-  )
-
-# Bind together: header row first, then headings + subgroup rows 
-plot_df <- bind_rows(header, heading_rows, plot_df)
-
-# custom_order <- c(" Header", "Age", "Sex", "Ethnicity", "Atherosclerotic CVD", "Heart failure")
-custom_order <- c(" Header", "Sex", "Ethnicity", "eGFR", "uACR", "Atherosclerotic CVD", "Heart failure")
-
-# Convert factor_label to a factor with levels in the desired order
-plot_df$factor_label <- factor(plot_df$factor_label, levels = custom_order)
-plot_df <- plot_df %>%
-  arrange(factor_label, desc(HR %>% is.na()))
+    raw_p = factor_hrs$p_value_interaction[match(factor_label, recode(factor_hrs$factor, 
+                                                                      "malesex"="Sex", 
+                                                                      "white_ethnicity"="Ethnicity", 
+                                                                      "low_egfr"="eGFR", 
+                                                                      "albuminuria"="uACR", 
+                                                                      "predrug_cvd"="Atherosclerotic CVD", 
+                                                                      "predrug_heartfailure"="Heart failure"))],
+    interaction_p = ifelse(is.na(raw_p), "", paste0("p=", sprintf("%.2f", round(raw_p, 2)))),
+    condition_label = factor_label
+  ) %>%
+  select(-raw_p)
 
 
-# Arrange by factor_label (groups) and HR NA (header first) 
-plot_df <- plot_df %>%
-  arrange(factor_label, desc(is.na(HR)), condition_label)
+# Define  custom order first so we process them in order
+custom_order <- c("Sex", "Ethnicity", "eGFR", "uACR", "Atherosclerotic CVD", "Heart failure")
 
-# Reassign y_order
+# Function to create a generic blank row
+create_spacer <- function(label_id) {
+  tibble(outcome = NA_character_, factor_label = label_id, condition_label = "", 
+         HR = NA_real_, LB = NA_real_, UB = NA_real_, string = "", 
+         treated_nN = "", ref_nN = "", interaction_p = "")
+}
+
+# Split the data, add headers and spacers, then recombine
+final_subgroup_data <- do.call(bind_rows, lapply(custom_order, function(f_label) {
+  # Get the header for this group
+  h_row <- heading_rows %>% filter(factor_label == f_label)
+  # Get the data rows for this group
+  d_rows <- plot_subgroups %>% filter(factor_label == f_label)
+  # Create a spacer row specifically for this group (so it stays with the group when sorting)
+  s_row <- create_spacer(f_label) 
+  
+  # Return: Header -> Data -> Spacer
+  bind_rows(h_row, d_rows, s_row)
+}))
+
+# prepare header and row for overall hr
+header <- tibble(
+  outcome = "Header", factor_label = " Header", condition_label = "Kidney disease progression",
+  HR = NA_real_, LB = NA_real_, UB = NA_real_, string = "HR (95% CI)",
+  treated_nN = paste0(drug_of_interest, " (n/N)"), ref_nN = paste0(drug_reference, " (n/N)"),
+  interaction_p = "Treatment arm by\nsubgroup interaction" 
+)
+
+plot_overall <- plot_overall %>% mutate(interaction_p = "")
+spacer_above <- create_spacer("Overall_Spacer_Top")
+spacer_below <- create_spacer("Overall_Spacer_Bottom")
+
+# bind header, overall hr, subgroup hrs, and spacers in between
+plot_df <- bind_rows(header, spacer_above, plot_overall, spacer_below, final_subgroup_data)
+
+# need to make sure the factor levels respect custom order 
+full_levels <- c(" Header", "Overall_Spacer_Top", "Overall", "Overall_Spacer_Bottom", custom_order)
+plot_df$factor_label <- factor(plot_df$factor_label, levels = full_levels)
+
+# order plot_df so that all will be displayed in the correct order as shown in the data now
 plot_df$y_order <- rev(seq_len(nrow(plot_df)))
 
-# plot
+# plot dataframe
+plot_min <- 0.5
+plot_max <- 1.3
+plot_df <- plot_df %>%
+  mutate(
+    display_HR = pmax(pmin(HR, plot_max), plot_min),
+    display_LB = pmax(LB, plot_min),
+    display_UB = pmin(UB, plot_max),
+    low_arrow = !is.na(LB) & LB < plot_min,
+    high_arrow = !is.na(UB) & UB > plot_max
+  )
+
+# forest plot (hr box and whiskers)
 forest_plot <- ggplot(plot_df, aes(y = y_order)) +
-  geom_linerange(aes(xmin = LB, xmax = UB), na.rm = TRUE) +
   geom_point(aes(x = HR), shape = 15, size = 3, na.rm = TRUE) +
-  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_linerange(aes(xmin = display_LB, xmax = display_UB), na.rm = TRUE) +
+  geom_segment(data = filter(plot_df, low_arrow),
+               aes(x = plot_min, xend = plot_min - 0.005, y = y_order, yend = y_order),
+               arrow = arrow(length = unit(0.2, "cm"), type = "open"), na.rm = TRUE) +
+  geom_segment(data = filter(plot_df, high_arrow),
+               aes(x = plot_max, xend = plot_max + 0.005, y = y_order, yend = y_order),
+               arrow = arrow(length = unit(0.2, "cm"), type = "open"), na.rm = TRUE) +
+  geom_vline(xintercept = 1, linetype = "solid") +
+  geom_vline(xintercept = overall_row$HR, linetype = "dashed") +
   
-  # Left labels (factor headings + subgroup names)
-  geom_text(aes(x = 0.09, label = condition_label,
-                fontface = ifelse(is.na(HR) , "bold", "plain")),
-            hjust = 0) +
+  # labels on th left
+  geom_text(aes(x = 0.12, label = condition_label,
+                fontface = ifelse(factor_label == "Overall" | is.na(HR), "bold", "plain")), hjust = 0) +
+  geom_text(aes(x = 0.21, label = treated_nN,
+                fontface = ifelse(factor_label == "Overall" | (is.na(HR) & string != ""), "bold", "plain")), hjust = 0) +
+  geom_text(aes(x = 0.33, label = ref_nN,
+                fontface = ifelse(factor_label == "Overall" | (is.na(HR) & string != ""), "bold", "plain")), hjust = 0) +
   
-  # n/N columns (only populated for header and subgroup rows)
-  geom_text(aes(x = 0.16, label = treated_nN,
-                fontface = ifelse(is.na(HR) & string != "", "bold", "plain")),
-            hjust = 0) +
-  geom_text(aes(x = 0.27, label = ref_nN,
-                fontface = ifelse(is.na(HR) & string != "", "bold", "plain")),
-            hjust = 0) +
+  annotate("text", x = .735, y = max(plot_df$y_order), fontface = "italic", label = paste0("Favours ", substr(drug_of_interest, 9, nchar(drug_of_interest)))) +
+  annotate("text", x = 1.22, y = max(plot_df$y_order), fontface = "italic", label = paste0("Favours ", substr(drug_reference, 9, nchar(drug_reference)))) +
   
-  # text to indicate which drug to favour
-  annotate("text", x = .65,
-           y = max(plot_df$y_order), fontface = "italic",
-           label = paste0("Favours ", drug_of_interest %>% substr(9, nchar(drug_of_interest)))) +
+  geom_text(aes(x = 1.5, label = string,
+                fontface = ifelse(factor_label == "Overall" | (is.na(HR) & string != ""), "bold", "plain")), hjust = 0) +
   
-  annotate("text", x = 1.5,
-           y = max(plot_df$y_order), fontface = "italic",
-           label = paste0("Favours ", drug_reference %>% substr(9, nchar(drug_reference)))) +
+  # p value
+  geom_text(aes(x = 2.6, label = interaction_p,
+                fontface = ifelse(factor_label == "Overall" | (is.na(HR) & string != ""), "bold", "plain")), 
+            hjust = 0.5, lineheight = 0.9) +
   
-  # HR text on right
-  geom_text(aes(x = 2.3, label = string,
-                fontface = ifelse(is.na(HR) & string != "", "bold", "plain")),
-            hjust = 0) +
+  # Expanded limits
+  scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1, 1.3), limits = c(0.12, 3), guide = guide_axis(cap = "both")) +
   
-  scale_x_continuous(trans = "log10",
-                     breaks = c(0.35, 0.5, 0.75, 1, 1.5, 2.25),
-                     limits = c(0.09, 2.7)) +
   scale_y_continuous(NULL, breaks = NULL) +
-  labs(x = "HR (95% CI)", y = NULL) +
-  theme_classic() +
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.line.x = element_blank(),
-        axis.title.x = element_text(hjust = 0.72)) +
+  labs(x = "Hazard ratio", y = NULL) +
   
-  # Custom axis line + ticks
-  geom_segment(aes(x = 0.35, xend = 2.25, y = 0, yend = 0),
-               inherit.aes = FALSE, linewidth = 0.4, color = "black") +
-  geom_segment(data = data.frame(x = c(0.35, 0.5, 0.75, 1, 1.5, 2.25)),
-               aes(x = x, xend = x, y = 0, yend = -0.2),
-               inherit.aes = FALSE, linewidth = 0.4, color = "black")
+  theme_classic() +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.line.y = element_blank(), axis.title.x = element_text(hjust = 0.6))
 
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2024/Output/")
-tiff(paste0(today, "_HR_", main, "_main_outcome_by_factors.tiff"), width=14, height=5, units = "in", res=800)
+# SAVE
+tiff(paste0(today, "_HR_", main, "_main_outcome_by_factors_spaced.tiff"), width=16, height=8, units = "in", res=800) # Increased height for spacers
 print(forest_plot)
 dev.off()
+
+cairo_pdf(paste0(today, "_HR_", main, "_main_outcome_by_factors_spaced.pdf"), 
+          width = 16, 
+          height = 6, 
+          family = "Arial")
+
+print(forest_plot)
+
+dev.off()
+
+
 
 ############################4 FOREST PLOT FOR DPP4i vs SU################################################################
 
 m <- 1
 studydrug_var <- paste0("studydrug", m)
 
-drug_levels <- levels(cohort[[studydrug_var]])
+drug_levels <- levels(as.factor(cohort[[studydrug_var]]))
 
 # all pairwise combinations
 pairs <- combn(drug_levels, 2, simplify = FALSE)
@@ -569,7 +652,7 @@ for (pair in pairs) {
     outcome = "Outcome",
     drug = "",
     HR = NA_real_, LB = NA_real_, UB = NA_real_,
-    string = "HR (95% CI)",
+    string = "HR* (95% CI)",
     treated_nN = paste0(drug_of_interest, " (n/N)"),
     ref_nN = paste0(drug_reference, " (n/N)")
   )
@@ -584,7 +667,7 @@ for (pair in pairs) {
   plot_df$y_order <- rev(seq_len(nrow(plot_df)))
   
   outcome_labels <- c(
-    "ckd_egfr40"        = "≥40% eGFR decline/ESKD",
+    "ckd_egfr40"        = "Kidney disease progression",
     "mace"              = "MACE (incl. CV death)",
     "hf"                = "Hospitalisation for HF",
     "acutepancreatitis" = "Acute pancreatitis",
@@ -621,7 +704,7 @@ for (pair in pairs) {
                        breaks = c(0.5, 0.75, 1, 1.5, 2.5),
                        limits = c(xmin, xmax)) +
     scale_y_continuous(NULL, breaks = NULL) +
-    labs(x = "HR (95% CI)", y = NULL) +
+    labs(x = "Hazard ratio", y = NULL) +
     theme_classic() +
     theme(
       panel.grid = element_blank(),
@@ -699,7 +782,7 @@ for (m in 3) {
     outcome = " ",
     drug = " ",
     HR = NA_real_, LB = NA_real_, UB = NA_real_,
-    string = "HR (95% CI)",
+    string = "HR* (95% CI)",
     treated_nN = paste0(drug_of_interest, " (n/N)"),
     ref_nN = paste0(drug_reference, " (n/N)")
   )
@@ -720,7 +803,7 @@ for (m in 3) {
   
   # Define pretty labels
   outcome_labels <- c(
-    "ckd_egfr40"             = "≥40% eGFR decline/ESKD",
+    "ckd_egfr40"             = "Kidney disease progression",
     "mace"                   = "MACE (incl. CV death)",
     "hf"                     = "Hospitalisation for HF",
     "acutepancreatitis"      = "Acute pancreatitis",
@@ -800,7 +883,7 @@ for (m in 3) {
                        breaks = c(0.3, 0.5, 0.75, 1, 1.5, 2.0),
                        limits = c(xmin, xmax)) +
     scale_y_continuous(NULL, breaks = NULL) +
-    labs(x = "HR (95% CI)", y = NULL) +
+    labs(x = "Hazard ratio", y = NULL) +
     theme_classic() +
     theme(
       panel.grid = element_blank(),
@@ -838,8 +921,8 @@ for (m in 3) {
 # set default studydrug variable
 studydrug_var = paste0("studydrug", main)
 
-drug_reference = levels(cohort[[studydrug_var]])[1]
-drug_of_interest = levels(cohort[[studydrug_var]])[2]
+drug_reference = levels(as.factor(cohort[[studydrug_var]]))[1]
+drug_of_interest = levels(as.factor(cohort[[studydrug_var]]))[2]
 
 k = "ckd_egfr40"
 
@@ -893,10 +976,10 @@ temp_k <- temp_k %>%
 # heading row (with column titles for treated and reference)
 heading <- tibble(
   outcome = k,
-  analysis = "≥40% eGFR decline/ESKD",
+  analysis = "Kidney disease progression",
   drug = "",
   HR = NA_real_, LB = NA_real_, UB = NA_real_,
-  string = "HR (95% CI)",
+  string = "HR* (95% CI)",
   treated_nN = paste0(drug_of_interest, " (n/N)"),
   ref_nN = paste0(drug_reference, " (n/N)")
 )
@@ -907,7 +990,7 @@ heading <- tibble(
 
 plot_df <- bind_rows(heading, temp_k)
 
-custom_order <- c("≥40% eGFR decline/ESKD", "all", "single_episodes", "no_insulin", "ncurrtx_upto_4", "all_3_exclusions", "hes_data_only", "incl_missing_uacr")
+custom_order <- c("Kidney disease progression", "all", "single_episodes", "no_insulin", "ncurrtx_upto_4", "all_3_exclusions", "hes_data_only", "incl_missing_uacr")
 
 # Convert analysis to a factor with levels in the desired order
 plot_df$analysis <- factor(plot_df$analysis, levels = custom_order)
@@ -977,7 +1060,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
                      breaks = c(0.5, 0.75, 1, 1.5),
                      limits = c(xmin, xmax)) +
   scale_y_continuous(NULL, breaks = NULL) +
-  labs(x = "HR (95% CI)", y = NULL) +
+  labs(x = "Hazard ratio", y = NULL) +
   theme_classic() +
   theme(
     panel.grid = element_blank(),
@@ -1015,8 +1098,8 @@ dev.off()
 # set default studydrug variable
 studydrug_var = paste0("studydrug", main)
 
-drug_reference = levels(cohort[[studydrug_var]])[1]
-drug_of_interest = levels(cohort[[studydrug_var]])[2]
+drug_reference = levels(as.factor(cohort[[studydrug_var]]))[1]
+drug_of_interest = levels(as.factor(cohort[[studydrug_var]]))[2]
 
 k = "ckd_egfr40"
 
@@ -1058,10 +1141,10 @@ temp_k <- temp_k %>%
 # heading row (with column titles for treated and reference)
 heading <- tibble(
   outcome = k,
-  analysis = "≥40% eGFR decline/ESKD",
+  analysis = "Kidney disease progression",
   drug = "",
   HR = NA_real_, LB = NA_real_, UB = NA_real_,
-  string = "HR (95% CI)",
+  string = "HR* (95% CI)",
   treated_nN = paste0(drug_of_interest, " (n/N)"),
   ref_nN = paste0(drug_reference, " (n/N)")
 )
@@ -1072,7 +1155,7 @@ heading <- tibble(
 
 plot_df <- bind_rows(heading, temp_k)
 
-custom_order <- c("≥40% eGFR decline/ESKD", "ow", "ow_5y", "ow_pp", "adj", "iptw", "fg_ow")
+custom_order <- c("Kidney disease progression", "ow", "ow_5y", "ow_pp", "adj", "iptw", "fg_ow")
 
 # Convert analysis to a factor with levels in the desired order
 plot_df$analysis <- factor(plot_df$analysis, levels = custom_order)
@@ -1140,7 +1223,7 @@ forest_plot <- ggplot(plot_df, aes(y = y_order)) +
                      breaks = c(0.5, 0.75, 1, 1.5),
                      limits = c(xmin, xmax)) +
   scale_y_continuous(NULL, breaks = NULL) +
-  labs(x = "HR (95% CI)", y = NULL) +
+  labs(x = "Hazard ratio", y = NULL) +
   theme_classic() +
   theme(
     panel.grid = element_blank(),
@@ -1300,7 +1383,7 @@ for (k in outcomes_per_drugclass[1]) {
       select(-c(W, B, T.var, se.coef)) %>%
       rename(Contrast = mean.coef)
     
-
+    
     m <- length(wald)
     Qbar <- mean(wald)
     B <- var(wald)
@@ -1394,11 +1477,63 @@ for (k in outcomes_per_drugclass[1]) {
     
     spline_and_histogram <- p_spline / histogram + plot_layout(heights = c(6, 1)) 
     
-    tiff(paste0(today, "_HR_for_", k, "_by_", q, ".tiff"), width=10, height=4, units = "in", res=600) 
-    print(spline_and_histogram)
-    dev.off()
+    # tiff(paste0(today, "_HR_for_", k, "_by_", q, ".tiff"), width=10, height=4, units = "in", res=600) 
+    # print(spline_and_histogram)
+    # dev.off()
+    assign(paste0("spline_", q), spline_and_histogram)
     
   }
 }
 
+
+# Panel A: Age
+p_age <- wrap_elements(spline_dstartdate_age) + 
+  ggtitle("    Age (interaction p=0.91)") +
+  theme(plot.title = element_text(size = 16, face = "plain"))
+
+# Panel B: CKD-PC Score
+p_ckdpc <- wrap_elements(spline_ckdpc_40egfr_score) + 
+  ggtitle("    CKD-PC risk score (interaction p=0.79)") +
+  theme(plot.title = element_text(size = 16, face = "plain"))
+
+# Panel C: eGFR
+p_egfr <- wrap_elements(spline_preegfr) + 
+  ggtitle("    eGFR (interaction p=0.49)") +
+  theme(plot.title = element_text(size = 16, face = "plain"))
+
+# Panel D: uACR
+p_uacr <- wrap_elements(spline_uacr) + 
+  ggtitle("    uACR (interaction p=0.43)") +
+  theme(plot.title = element_text(size = 16, face = "plain"))
+
+# Combine into a 2x2 Grid
+final_grid <- (p_age | p_ckdpc) / (p_egfr | p_uacr)
+
+final_figure <- final_grid + 
+  plot_annotation(
+    tag_levels = 'A',      
+    tag_suffix = "."       
+  ) & 
+  theme(
+    # for tags A.; B.; C.; D.
+    plot.tag = element_text(size = 22, face = "bold"),
+    # align tags with title
+    plot.tag.position = c(0, 1),
+    # Adds margin so letters don't overlap the text
+    plot.margin = margin(t = 20, r = 10, b = 10, l = 10)
+  )
+
+# save
+tiff(paste0(today, "_combined_spline_plot.tiff"), width = 18, height = 12, units = "in", res = 800)
+print(final_figure)
+dev.off()
+
+cairo_pdf(paste0(today, "_combined_spline_plot.pdf"), 
+          width = 18, 
+          height = 12, 
+          family = "Arial")
+
+print(final_figure)
+
+dev.off()
 

@@ -134,13 +134,13 @@ for (m in 1:n.studydrug.vars) {
         print(paste0("Analyses in imputed dataset number ", i))
         
         #unadjusted model
-        fit.unadj <- coxph(f2, cohort[cohort$.imp == i,])
+        fit.unadj <- coxph(f2, cluster = patid, cohort[cohort$.imp == i,])
         #adjusted model
-        fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])      
+        fit.adj <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp == i,])      
         #overlap weighted model
-        fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+        fit.ow <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
         #inverse probability of treatment weighted model
-        fit.iptw <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
+        fit.iptw <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_iptw]])      
         
         #store coefficients and standard errors from this model
         for (n in 1:length(drug_levels[-1])) { # 1st is reference category so no coefficients to extract
@@ -376,7 +376,7 @@ m = main
   
       #overlap weighted model
         
-      fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+      fit.ow <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
       
       
@@ -610,7 +610,7 @@ for (k in outcomes[1]) {
     
     #overlap weighted model
     
-    fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+    fit.ow <- coxph(f_adjusted2, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
     
     
     
@@ -796,7 +796,7 @@ for (n in drug_levels[-1]) {
 for (i in 1:n.imp) {
   print(paste0("Analyses in imputed dataset number ", i))
   
-  fit.fg_ow <- coxph(f_fg_adjusted, data = fg_data %>% filter(.imp == i), weights = fg_ow)
+  fit.fg_ow <- coxph(f_fg_adjusted, cluster = patid, data = fg_data %>% filter(.imp == i), weights = fg_ow)
   
   
   #store coefficients and standard errors from this model
@@ -1021,7 +1021,7 @@ for (k in outcomes[1]) {
       print(paste0("Analyses in imputed dataset number ", i))
       
       # model with interaction
-      model <- coxph(f_adjusted_interaction, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+      model <- coxph(f_adjusted_interaction, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
       # save wald statistic for interaction term
       wald[i] = car::Anova(model, type = 3, test = "Wald")[paste0("studydrug", main, ":", l),"Chisq"]
@@ -1383,7 +1383,7 @@ for (k in outcomes[1]) {
       print(paste0("Analyses in imputed dataset number ", i))
       
       # model with interaction
-      model <- coxph(f_adjusted_interaction, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
+      model <- coxph(f_adjusted_interaction, cluster = patid, cohort[cohort$.imp ==i,], weights = cohort[cohort$.imp ==i,][[weights_overlap]])
       
       # save wald statistic for interaction term
       wald[i] = car::Anova(model, type = 3, test = "Wald")[paste0("studydrug", main, ":", l),"Chisq"]
